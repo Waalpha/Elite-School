@@ -20,6 +20,7 @@ interface TenantContextType {
   currentTenant: Tenant | null;
   setCurrentTenant: (tenant: Tenant | null) => void;
   selectTenantById: (tenantId: string) => Promise<void>;
+  selectTenantBySubdomain: (subdomain: string) => void;
   branches: Branch[];
   currentBranch: Branch | null;
   setCurrentBranch: (branch: Branch | null) => void;
@@ -35,6 +36,8 @@ interface TenantContextType {
   loading: boolean;
   viewMode: "erp" | "website" | "platform";
   setViewMode: (mode: "erp" | "website" | "platform") => void;
+  getTenantSubdomainUrl: (tenant?: Tenant | null, mode?: "erp" | "website") => string;
+  getTenantShareUrl: (tenant?: Tenant | null, mode?: "erp" | "website") => string;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -56,13 +59,32 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     role: "tenant_admin",
   });
 
-  // URL-driven tenant routing support
-  const getTenantIdFromUrl = (): string | null => {
+  // URL-driven tenant & subdomain routing support
+  const getTenantIdentifierFromUrl = (): string | null => {
     try {
       const urlParams = new URLSearchParams(window.location.search);
-      const queryTenant = urlParams.get("tenant");
-      if (queryTenant) return queryTenant;
+      // Priority 1: ?subdomain=bitc or ?subdomain=staustin
+      const querySubdomain = urlParams.get("subdomain");
+      if (querySubdomain) return querySubdomain.toLowerCase().trim();
 
+      // Priority 2: ?tenant=bitc-college
+      const queryTenant = urlParams.get("tenant");
+      if (queryTenant) return queryTenant.trim();
+
+      // Priority 3: Hostname subdomain detection (e.g. bitc.davetecherp.com or bitc.davetech.co.ke)
+      const hostname = window.location.hostname;
+      if (
+        hostname.includes(".davetecherp.") ||
+        hostname.includes(".davetech.") ||
+        hostname.includes(".localhost")
+      ) {
+        const parts = hostname.split(".");
+        if (parts.length > 2 && parts[0] !== "www" && parts[0] !== "app" && parts[0] !== "api") {
+          return parts[0].toLowerCase();
+        }
+      }
+
+      // Priority 4: Path-based routing /site/:tenantId or /app/:tenantId
       const path = window.location.pathname;
       if (path.startsWith("/site/")) {
         const siteId = path.replace("/site/", "").split("/")[0];
@@ -78,6 +100,31 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return null;
   };
 
+  // Helper to format full DAVETECH subdomain URL
+  const getTenantSubdomainUrl = (tenant?: Tenant | null, mode?: "erp" | "website"): string => {
+    const target = tenant || currentTenant;
+    if (!target) return "https://davetecherp.com";
+    const sub = (target.subdomain || target.code || "app").toLowerCase().replace(/[^a-z0-9-]/g, "");
+    const base = `https://${sub}.davetecherp.com`;
+    return mode === "website" ? `${base}/website` : base;
+  };
+
+  // Helper to get shareable live app URL with query params
+  const getTenantShareUrl = (tenant?: Tenant | null, mode?: "erp" | "website"): string => {
+    const target = tenant || currentTenant;
+    if (!target) return window.location.origin;
+    try {
+      const url = new URL(window.location.origin + window.location.pathname);
+      const sub = (target.subdomain || target.code || "app").toLowerCase().replace(/[^a-z0-9-]/g, "");
+      url.searchParams.set("subdomain", sub);
+      url.searchParams.set("tenant", target.id);
+      if (mode) url.searchParams.set("mode", mode);
+      return url.toString();
+    } catch {
+      return window.location.href;
+    }
+  };
+
   // Sync viewMode to URL query or path
   const setViewMode = (mode: "erp" | "website" | "platform") => {
     setViewModeState(mode);
@@ -86,6 +133,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       url.searchParams.set("mode", mode);
       if (currentTenant) {
         url.searchParams.set("tenant", currentTenant.id);
+        const sub = (currentTenant.subdomain || currentTenant.code || "app").toLowerCase().replace(/[^a-z0-9-]/g, "");
+        url.searchParams.set("subdomain", sub);
       }
       window.history.replaceState({}, "", url.toString());
     } catch {
@@ -108,10 +157,15 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setTenants(list);
         setLoading(false);
 
-        // Check if URL specifies tenant
-        const urlTenantId = getTenantIdFromUrl();
-        if (urlTenantId) {
-          const matched = list.find((t) => t.id === urlTenantId);
+        // Check if URL specifies tenant by subdomain, code, or ID
+        const urlIdentifier = getTenantIdentifierFromUrl();
+        if (urlIdentifier) {
+          const matched = list.find(
+            (t) =>
+              (t.subdomain && t.subdomain.toLowerCase() === urlIdentifier.toLowerCase()) ||
+              t.code.toLowerCase() === urlIdentifier.toLowerCase() ||
+              t.id.toLowerCase() === urlIdentifier.toLowerCase()
+          );
           if (matched) {
             setCurrentTenantState(matched);
             return;
@@ -169,8 +223,11 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const url = new URL(window.location.href);
       if (tenant) {
         url.searchParams.set("tenant", tenant.id);
+        const sub = (tenant.subdomain || tenant.code || "app").toLowerCase().replace(/[^a-z0-9-]/g, "");
+        url.searchParams.set("subdomain", sub);
       } else {
         url.searchParams.delete("tenant");
+        url.searchParams.delete("subdomain");
       }
       window.history.replaceState({}, "", url.toString());
     } catch {
@@ -182,6 +239,19 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const t = await getTenantById(tenantId);
     if (t) {
       setCurrentTenant(t);
+    }
+  };
+
+  const selectTenantBySubdomain = (subdomain: string) => {
+    const clean = subdomain.toLowerCase().trim();
+    const matched = tenants.find(
+      (t) =>
+        (t.subdomain && t.subdomain.toLowerCase() === clean) ||
+        t.code.toLowerCase() === clean ||
+        t.id.toLowerCase() === clean
+    );
+    if (matched) {
+      setCurrentTenant(matched);
     }
   };
 
@@ -235,6 +305,7 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         currentTenant,
         setCurrentTenant,
         selectTenantById,
+        selectTenantBySubdomain,
         branches,
         currentBranch,
         setCurrentBranch,
@@ -250,6 +321,8 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         loading,
         viewMode,
         setViewMode,
+        getTenantSubdomainUrl,
+        getTenantShareUrl,
       }}
     >
       {children}

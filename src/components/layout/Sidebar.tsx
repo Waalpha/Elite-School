@@ -18,6 +18,7 @@ import {
   ChevronRight,
   School,
   FileSpreadsheet,
+  Lock,
 } from "lucide-react";
 
 interface SidebarProps {
@@ -140,8 +141,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
             <h2 className="text-xs font-bold text-white leading-tight truncate">
               {currentTenant?.name || "DAVETECH Organization"}
             </h2>
-            <div className="text-[11px] text-slate-400 truncate mt-0.5">
-              {currentTenant?.motto || "Excellence in Execution"}
+            <div className="text-[10px] font-mono text-indigo-400 font-bold truncate flex items-center gap-1 mt-0.5">
+              <Lock className="w-2.5 h-2.5 text-emerald-400 shrink-0" />
+              <span className="truncate">
+                {(currentTenant?.subdomain || currentTenant?.code || "tenant").toLowerCase()}.davetecherp.com
+              </span>
             </div>
           </div>
         </div>
@@ -189,15 +193,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab }) => 
       {/* Footer / User Session Info */}
       <div className="p-3 border-t border-slate-800 bg-slate-950/60 text-xs">
         <div className="flex items-center justify-between text-slate-400 mb-1">
-          <span className="text-[10px] uppercase font-bold text-slate-500">Active Tenant ID</span>
-          <span className="text-[10px] font-mono text-indigo-400 font-semibold">{currentTenant?.code}</span>
+          <span className="text-[10px] uppercase font-bold text-slate-500">Subdomain Route</span>
+          <span className="text-[10px] font-mono text-indigo-400 font-semibold truncate max-w-[120px]">
+            {(currentTenant?.subdomain || currentTenant?.code || "tenant").toLowerCase()}
+          </span>
         </div>
         <div className="text-[11px] text-slate-300 font-medium truncate">
           {currentUser.name}
         </div>
         <div className="text-[10px] text-emerald-400 flex items-center gap-1 mt-0.5">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span>Firestore Real-Time Sync</span>
+          <span>DAVETECH Multi-Tenant Core</span>
         </div>
       </div>
     </aside>

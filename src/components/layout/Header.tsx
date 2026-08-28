@@ -15,6 +15,8 @@ import {
   Check,
   Plus,
   QrCode,
+  Lock,
+  Copy,
 } from "lucide-react";
 
 interface HeaderProps {
@@ -33,12 +35,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
     setCurrentUserRole,
     viewMode,
     setViewMode,
+    getTenantSubdomainUrl,
   } = useTenant();
 
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
+  const [copiedHeaderSubdomain, setCopiedHeaderSubdomain] = useState(false);
 
   const rolesList: { role: UserRole; label: string; badge: string }[] = [
     { role: "platform_super_admin", label: "Platform Super Admin (DAVETECH)", badge: "Platform" },
@@ -96,12 +100,14 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
                   <div className="text-xs font-bold text-slate-900 truncate">
                     {currentTenant?.name || "Select Tenant Organization"}
                   </div>
-                  <div className="text-[10px] text-slate-500 flex items-center gap-1">
+                  <div className="text-[10px] text-slate-500 flex items-center gap-1.5 flex-wrap">
                     <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
                     <span className="font-semibold text-slate-700 uppercase">
                       {currentTenant?.code || "TENANT"}
                     </span>
-                    <span>• {currentTenant?.type === "college_tvet" ? "TVET / College" : currentTenant?.type === "school_primary" ? "CBC Pre & Primary" : "Enterprise"}</span>
+                    <span className="text-indigo-600 font-mono font-bold bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-100">
+                      {(currentTenant?.subdomain || currentTenant?.code || "app").toLowerCase()}.davetecherp.com
+                    </span>
                   </div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-slate-400 shrink-0 ml-1" />
@@ -110,17 +116,18 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
               {tenantDropdownOpen && (
                 <div
                   id="tenant_dropdown_menu"
-                  className="absolute left-0 mt-2 w-80 rounded-xl bg-white border border-slate-200 shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
+                  className="absolute left-0 mt-2 w-96 rounded-xl bg-white border border-slate-200 shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150"
                 >
                   <div className="px-3 py-1.5 border-b border-slate-100 flex items-center justify-between text-xs font-semibold text-slate-500">
-                    <span>TENANT ORGANIZATIONS</span>
+                    <span>TENANT ORGANIZATIONS & SUBDOMAINS</span>
                     <span className="text-[11px] bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded-full">
                       {tenants.length} active
                     </span>
                   </div>
-                  <div className="max-h-64 overflow-y-auto py-1">
+                  <div className="max-h-72 overflow-y-auto py-1 divide-y divide-slate-50">
                     {tenants.map((t) => {
                       const isSelected = currentTenant?.id === t.id;
+                      const sub = (t.subdomain || t.code || "tenant").toLowerCase();
                       return (
                         <button
                           key={t.id}
@@ -129,21 +136,23 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
                             setCurrentTenant(t);
                             setTenantDropdownOpen(false);
                           }}
-                          className={`w-full px-3 py-2 text-left flex items-center gap-3 transition-colors ${
-                            isSelected ? "bg-indigo-50/80 text-indigo-950" : "hover:bg-slate-50 text-slate-800"
+                          className={`w-full px-3 py-2.5 text-left flex items-center gap-3 transition-colors ${
+                            isSelected ? "bg-indigo-50/90 text-indigo-950" : "hover:bg-slate-50 text-slate-800"
                           }`}
                         >
                           <img
                             src={t.logo}
                             alt=""
-                            className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0"
+                            className="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0"
                           />
                           <div className="min-w-0 flex-1">
                             <div className="text-xs font-bold truncate">{t.name}</div>
-                            <div className="text-[11px] text-slate-500 flex items-center gap-1.5">
+                            <div className="text-[11px] text-slate-500 flex items-center gap-1.5 mt-0.5">
                               <span className="font-semibold text-slate-700">{t.code}</span>
                               <span>•</span>
-                              <span className="capitalize">{t.type.replace("_", " ")}</span>
+                              <span className="font-mono text-indigo-600 font-bold">
+                                {sub}.davetecherp.com
+                              </span>
                             </div>
                           </div>
                           {isSelected && <Check className="w-4 h-4 text-indigo-600 shrink-0" />}

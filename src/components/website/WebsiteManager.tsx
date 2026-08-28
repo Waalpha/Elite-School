@@ -6,6 +6,7 @@ import {
   saveWebsiteConfig,
   uploadFileToStorage,
 } from "../../services/firestoreService";
+import { compressImageToDataUrl } from "../../utils/imageUtils";
 import {
   Globe,
   Save,
@@ -177,14 +178,18 @@ export const WebsiteManager: React.FC<WebsiteManagerProps> = ({
       let finalUrl = "";
       try {
         finalUrl = await uploadFileToStorage(currentTenant.id, "website_logo", file);
-      } catch {
-        finalUrl = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
+      } catch (storageErr) {
+        console.warn("Website logo upload fallback to compressed Data URL:", storageErr);
+        finalUrl = await compressImageToDataUrl(file, {
+          maxWidth: 400,
+          maxHeight: 400,
+          quality: 0.9,
+          mimeType: file.type.includes("png") ? "image/png" : "image/jpeg",
         });
       }
-      setConfig({ ...config, logoUrl: finalUrl });
+      setConfig((prev) => (prev ? { ...prev, logoUrl: finalUrl } : null));
+    } catch (err) {
+      console.error("Website logo upload error:", err);
     } finally {
       setUploadingLogo(false);
     }
@@ -196,16 +201,18 @@ export const WebsiteManager: React.FC<WebsiteManagerProps> = ({
       let url = "";
       try {
         url = await uploadFileToStorage(currentTenant.id, `slide_${slideIndex}`, file);
-      } catch {
-        url = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
+      } catch (storageErr) {
+        console.warn("Slide image upload fallback to compressed Data URL:", storageErr);
+        url = await compressImageToDataUrl(file, {
+          maxWidth: 1280,
+          maxHeight: 720,
+          quality: 0.85,
+          mimeType: "image/jpeg",
         });
       }
       const nextSlides = [...config.heroSlides];
       nextSlides[slideIndex] = { ...nextSlides[slideIndex], imageUrl: url };
-      setConfig({ ...config, heroSlides: nextSlides });
+      setConfig((prev) => (prev ? { ...prev, heroSlides: nextSlides } : null));
     } catch (err) {
       console.error("Slide upload error:", err);
     }

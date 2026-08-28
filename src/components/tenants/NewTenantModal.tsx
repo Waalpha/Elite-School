@@ -17,6 +17,8 @@ export const NewTenantModal: React.FC<NewTenantModalProps> = ({ isOpen, onClose 
   const [formData, setFormData] = useState<{
     name: string;
     code: string;
+    subdomain: string;
+    customDomain: string;
     type: TenantType;
     email: string;
     phone: string;
@@ -27,6 +29,8 @@ export const NewTenantModal: React.FC<NewTenantModalProps> = ({ isOpen, onClose 
   }>({
     name: "",
     code: "",
+    subdomain: "",
+    customDomain: "",
     type: "school_primary",
     email: "",
     phone: "+254 ",
@@ -38,15 +42,27 @@ export const NewTenantModal: React.FC<NewTenantModalProps> = ({ isOpen, onClose 
 
   if (!isOpen) return null;
 
+  const slugify = (text: string) =>
+    text
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    const tenantId = formData.name.toLowerCase().replace(/[^a-z0-9]/g, "-") + "-" + Math.floor(100 + Math.random() * 900);
+    const baseSubdomain = slugify(formData.subdomain || formData.code || formData.name || "tenant");
+    const tenantId = baseSubdomain + "-" + Math.floor(100 + Math.random() * 900);
+    
     const newTenant: Tenant = {
       id: tenantId,
       name: formData.name,
       code: formData.code.toUpperCase(),
+      subdomain: baseSubdomain,
+      customDomain: formData.customDomain ? formData.customDomain.trim().toLowerCase() : undefined,
       type: formData.type,
       logo: formData.type === "school_primary"
         ? "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=200"
@@ -54,7 +70,7 @@ export const NewTenantModal: React.FC<NewTenantModalProps> = ({ isOpen, onClose 
       email: formData.email,
       phone: formData.phone,
       address: formData.address,
-      website: `https://${formData.code.toLowerCase()}.ac.ke`,
+      website: `https://${baseSubdomain}.davetecherp.com`,
       country: "Kenya",
       status: "active",
       subscriptionPlan: "enterprise",
@@ -127,14 +143,55 @@ export const NewTenantModal: React.FC<NewTenantModalProps> = ({ isOpen, onClose 
                 value={formData.name}
                 onChange={(e) => {
                   const val = e.target.value;
+                  const autoSlug = slugify(val);
                   setFormData({
                     ...formData,
                     name: val,
                     code: formData.code || val.split(" ").map((w) => w[0]).join("").substring(0, 5),
+                    subdomain: formData.subdomain ? formData.subdomain : autoSlug,
                   });
                 }}
                 className="w-full p-2.5 rounded-lg border border-slate-200 font-semibold"
               />
+            </div>
+
+            {/* Subdomain Configuration Section */}
+            <div className="bg-indigo-50/70 border border-indigo-200 p-3 rounded-xl space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-bold text-indigo-950">
+                  DAVETECH ERP Dedicated Subdomain *
+                </label>
+                <span className="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 rounded-full">
+                  SSL Secured
+                </span>
+              </div>
+              <div className="flex items-center">
+                <span className="bg-slate-100 border border-r-0 border-slate-300 px-2.5 py-2 rounded-l-lg text-[11px] font-mono text-slate-600">
+                  https://
+                </span>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. apex-academy"
+                  value={formData.subdomain}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      subdomain: slugify(e.target.value),
+                    })
+                  }
+                  className="flex-1 p-2 border-y border-slate-300 text-xs font-mono font-bold text-indigo-700 bg-white focus:outline-none"
+                />
+                <span className="bg-indigo-100 border border-l-0 border-indigo-300 px-2.5 py-2 rounded-r-lg text-[11px] font-bold text-indigo-900">
+                  .davetecherp.com
+                </span>
+              </div>
+              <div className="text-[10px] text-slate-500 flex items-center justify-between">
+                <span>Unique routing address for public website, staff ERP, and portals</span>
+                <span className="font-mono text-indigo-700 font-semibold">
+                  {slugify(formData.subdomain || formData.code || "tenant")}.davetecherp.com
+                </span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

@@ -22,6 +22,8 @@ import {
   Plus,
   Trash2,
   Edit2,
+  Edit,
+  Copy,
   Users,
   GraduationCap,
   Sparkles,
@@ -83,13 +85,15 @@ export const AcademicsManager: React.FC = () => {
     status: "active",
   });
 
+  const [editingFeeStructureId, setEditingFeeStructureId] = useState<string | null>(null);
   const [feeStructureForm, setFeeStructureForm] = useState<{
     id?: string;
+    title?: string;
     gradeOrCourse: string;
     educationLevel: EducationLevel;
     academicYear: string;
     term: string;
-    items: { name: string; amount: number }[];
+    items: { name: string; title?: string; amount: number }[];
   }>({
     gradeOrCourse: "Grade 4",
     educationLevel: "primary",
@@ -193,34 +197,107 @@ export const AcademicsManager: React.FC = () => {
     setIsCourseModalOpen(false);
   };
 
+  const handleOpenCreateFeeStructure = () => {
+    setEditingFeeStructureId(null);
+    setFeeStructureForm({
+      title: "",
+      gradeOrCourse: isPrimary ? "Grade 5" : "Diploma in ICT",
+      educationLevel: isPrimary ? "primary" : "college",
+      academicYear: "2026",
+      term: "Term 1",
+      items: [
+        { name: "Tuition & Instructional Materials", amount: 16000 },
+        { name: "CBC Assessment & Practical Exam Fees", amount: 3500 },
+        { name: "Physical Education, Clubs & Sports", amount: 2000 },
+        { name: "ICT & Digital Lab Subscription", amount: 2500 },
+        { name: "School Lunch & Midday Refreshment", amount: 5500 },
+        { name: "Maintenance & PTA Development", amount: 1500 },
+      ],
+    });
+    setIsFeeStructureModalOpen(true);
+  };
+
+  const handleOpenEditFeeStructure = (fee: FeeStructure) => {
+    setEditingFeeStructureId(fee.id);
+    setFeeStructureForm({
+      id: fee.id,
+      title: fee.title || `${fee.gradeOrCourse || fee.gradeOrClass} Fee Schedule`,
+      gradeOrCourse: fee.gradeOrCourse || fee.gradeOrClass || "Grade 1",
+      educationLevel: fee.educationLevel || "primary",
+      academicYear: fee.academicYear || "2026",
+      term: fee.term || fee.termOrSemester || "Term 1",
+      items: fee.items?.length
+        ? fee.items.map((it) => ({
+            name: it.name || it.title || "Fee Votehead",
+            title: it.title || it.name || "Fee Votehead",
+            amount: Number(it.amount) || 0,
+          }))
+        : [{ name: "Tuition Fee", amount: 15000 }],
+    });
+    setIsFeeStructureModalOpen(true);
+  };
+
+  const handleDuplicateFeeStructure = (fee: FeeStructure) => {
+    setEditingFeeStructureId(null);
+    setFeeStructureForm({
+      title: `${fee.title || fee.gradeOrCourse} (Copy)`,
+      gradeOrCourse: fee.gradeOrCourse || fee.gradeOrClass || "Grade 1",
+      educationLevel: fee.educationLevel || "primary",
+      academicYear: fee.academicYear || "2026",
+      term: fee.term || fee.termOrSemester || "Term 1",
+      items: fee.items?.length
+        ? fee.items.map((it) => ({
+            name: it.name || it.title || "Fee Votehead",
+            title: it.title || it.name || "Fee Votehead",
+            amount: Number(it.amount) || 0,
+          }))
+        : [{ name: "Tuition Fee", amount: 15000 }],
+    });
+    setIsFeeStructureModalOpen(true);
+  };
+
   const handleSaveFeeStructure = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentTenant) return;
 
     const totalAmount = feeStructureForm.items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
-    const id = feeStructureForm.id || "fee_struct_" + Date.now();
+    const id = editingFeeStructureId || feeStructureForm.id || "fee_struct_" + Date.now();
+    const title = feeStructureForm.title || `${feeStructureForm.gradeOrCourse} - ${feeStructureForm.academicYear} ${feeStructureForm.term} Fees`;
 
     const payload: FeeStructure = {
       id,
       tenantId: currentTenant.id,
       branchId: currentBranch?.id || "main",
+      title,
+      gradeOrClass: feeStructureForm.gradeOrCourse,
       educationLevel: feeStructureForm.educationLevel,
       gradeOrCourse: feeStructureForm.gradeOrCourse,
       academicYear: feeStructureForm.academicYear,
+      termOrSemester: feeStructureForm.term,
       term: feeStructureForm.term,
-      items: feeStructureForm.items.map((it) => ({ name: it.name, amount: Number(it.amount) || 0 })),
+      items: feeStructureForm.items.map((it) => ({
+        name: it.name || it.title || "Votehead",
+        title: it.name || it.title || "Votehead",
+        amount: Number(it.amount) || 0,
+      })),
       totalAmount,
       createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
     await saveFeeStructure(currentTenant.id, payload);
     setIsFeeStructureModalOpen(false);
+    setEditingFeeStructureId(null);
   };
 
-  const handleDeleteFeeStructure = async (feeId: string) => {
+  const handleDeleteFeeStructure = async (feeId: string, title?: string) => {
     if (!currentTenant) return;
-    if (confirm("Are you sure you want to delete this fee structure from Firestore?")) {
+    if (confirm(`Are you sure you want to delete the fee structure "${title || feeId}"? This cannot be undone.`)) {
       await deleteFeeStructure(currentTenant.id, feeId, { name: currentUser.name });
+      if (editingFeeStructureId === feeId) {
+        setIsFeeStructureModalOpen(false);
+        setEditingFeeStructureId(null);
+      }
     }
   };
 
@@ -484,7 +561,7 @@ export const AcademicsManager: React.FC = () => {
       {/* TAB 4: FEE STRUCTURES & LEVIES */}
       {activeSubTab === "fee_structures" && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
+          <div className="flex justify-between items-center bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
             <div>
               <div className="text-xs font-bold text-slate-900">Termly Fee Structures & CBC Levies</div>
               <div className="text-[11px] text-slate-500">
@@ -494,24 +571,8 @@ export const AcademicsManager: React.FC = () => {
 
             <button
               type="button"
-              onClick={() => {
-                setFeeStructureForm({
-                  gradeOrCourse: isPrimary ? "Grade 5" : "Diploma in ICT",
-                  educationLevel: isPrimary ? "primary" : "college",
-                  academicYear: "2026",
-                  term: "Term 1",
-                  items: [
-                    { name: "Tuition & Instructional Materials", amount: 16000 },
-                    { name: "CBC Assessment & Practical Exam Fees", amount: 3500 },
-                    { name: "Physical Education, Clubs & Sports", amount: 2000 },
-                    { name: "ICT & Digital Lab Subscription", amount: 2500 },
-                    { name: "School Lunch & Midday Refreshment", amount: 5500 },
-                    { name: "Maintenance & PTA Development", amount: 1500 },
-                  ],
-                });
-                setIsFeeStructureModalOpen(true);
-              }}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs hover:bg-indigo-700"
+              onClick={handleOpenCreateFeeStructure}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 text-white text-xs font-bold shadow-xs hover:bg-indigo-700 transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Add New Fee Structure</span>
@@ -519,55 +580,110 @@ export const AcademicsManager: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {feeStructures.map((fee) => (
-              <div
-                key={fee.id}
-                className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-indigo-200 transition-all flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="text-[10px] font-bold uppercase bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full">
-                          {fee.academicYear} • {fee.term}
-                        </span>
+            {feeStructures.map((fee) => {
+              const displayGrade = fee.gradeOrCourse || fee.gradeOrClass || "All Grades";
+              const displayTitle = fee.title || `${displayGrade} Fee Schedule`;
+              const displayTerm = fee.term || fee.termOrSemester || "Term 1";
+
+              return (
+                <div
+                  key={fee.id}
+                  className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-indigo-300 transition-all flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <span className="text-[10px] font-bold uppercase bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md">
+                            {displayGrade}
+                          </span>
+                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                            {fee.academicYear} • {displayTerm}
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-extrabold text-slate-900 mt-1 truncate" title={displayTitle}>
+                          {displayTitle}
+                        </h3>
                       </div>
-                      <h3 className="text-sm font-extrabold text-slate-900 mt-2 flex items-center gap-1.5">
-                        <Receipt className="w-4 h-4 text-indigo-600" />
-                        <span>{fee.gradeOrCourse} Fee Schedule</span>
-                      </h3>
+
+                      {/* Top Action Icons */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditFeeStructure(fee)}
+                          className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+                          title="Edit Fee Structure"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateFeeStructure(fee)}
+                          className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer"
+                          title="Duplicate Fee Structure"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFeeStructure(fee.id, displayTitle)}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors cursor-pointer"
+                          title="Delete Fee Structure"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteFeeStructure(fee.id)}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-rose-50"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  {/* Fee Itemized Breakdown */}
-                  <div className="mt-3 space-y-1.5 bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs">
-                    {fee.items?.map((it, idx) => (
-                      <div key={idx} className="flex justify-between items-center text-slate-600">
-                        <span className="truncate pr-2">{it.name}:</span>
-                        <span className="font-semibold text-slate-900 shrink-0 font-mono">
-                          {currency} {it.amount.toLocaleString()}
-                        </span>
+                    {/* Fee Itemized Breakdown */}
+                    <div className="mt-3 space-y-1.5 bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs">
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        <span>Votehead Breakdown</span>
+                        <span>{fee.items?.length || 0} Items</span>
                       </div>
-                    ))}
+                      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                        {fee.items?.map((it, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-slate-600 py-0.5">
+                            <span className="truncate pr-2">{it.name || it.title}:</span>
+                            <span className="font-semibold text-slate-900 shrink-0 font-mono">
+                              {currency} {(Number(it.amount) || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-200 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500">Total Term Bill:</span>
+                      <span className="text-base font-black text-emerald-700 font-mono">
+                        {currency} {(Number(fee.totalAmount) || 0).toLocaleString()}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditFeeStructure(fee)}
+                        className="flex-1 py-1.5 px-3 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-[11px] rounded-lg border border-slate-200 hover:border-indigo-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit Schedule</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFeeStructure(fee.id, displayTitle)}
+                        className="py-1.5 px-2.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
+                        title="Delete Fee Structure"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-200 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">Total Term Bill:</span>
-                  <span className="text-base font-black text-emerald-700 font-mono">
-                    {currency} {fee.totalAmount.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {feeStructures.length === 0 && (
@@ -780,21 +896,40 @@ export const AcademicsManager: React.FC = () => {
         </div>
       )}
 
-      {/* CREATE FEE STRUCTURE MODAL */}
+      {/* CREATE / EDIT FEE STRUCTURE MODAL */}
       {isFeeStructureModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <Receipt className="w-5 h-5 text-indigo-600" />
-                <h3 className="text-sm font-bold text-slate-900">Create New Fee Structure & Levies</h3>
+                <h3 className="text-sm font-bold text-slate-900">
+                  {editingFeeStructureId ? "Edit Fee Structure & Levies" : "Create New Fee Structure & Levies"}
+                </h3>
               </div>
-              <button onClick={() => setIsFeeStructureModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+              <button
+                onClick={() => {
+                  setIsFeeStructureModalOpen(false);
+                  setEditingFeeStructureId(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             <form onSubmit={handleSaveFeeStructure} className="mt-4 space-y-4 text-xs">
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">Fee Structure Title</label>
+                <input
+                  type="text"
+                  placeholder="e.g. Grade 4 - 2026 Term 1 Fees"
+                  value={feeStructureForm.title || ""}
+                  onChange={(e) => setFeeStructureForm({ ...feeStructureForm, title: e.target.value })}
+                  className="w-full p-2 rounded-lg border border-slate-200 font-semibold"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold text-slate-700 mb-1">Target Grade / Course *</label>
@@ -862,7 +997,7 @@ export const AcademicsManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddFeeItem}
-                    className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] flex items-center gap-1"
+                    className="text-indigo-600 hover:text-indigo-800 font-bold text-[11px] flex items-center gap-1 cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>Add Line Item</span>
@@ -905,7 +1040,7 @@ export const AcademicsManager: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleRemoveFeeItem(idx)}
-                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50"
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded hover:bg-rose-50 cursor-pointer"
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -923,20 +1058,38 @@ export const AcademicsManager: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsFeeStructureModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-xs"
-                >
-                  Save Fee Structure
-                </button>
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                {editingFeeStructureId ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteFeeStructure(editingFeeStructureId, feeStructureForm.title || feeStructureForm.gradeOrCourse)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-lg font-semibold text-xs transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Structure</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsFeeStructureModalOpen(false);
+                      setEditingFeeStructureId(null);
+                    }}
+                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-xs cursor-pointer transition-colors"
+                  >
+                    {editingFeeStructureId ? "Update Fee Structure" : "Save Fee Structure"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

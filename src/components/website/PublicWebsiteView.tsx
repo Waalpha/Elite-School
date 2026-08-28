@@ -24,6 +24,8 @@ import {
   ChevronRight,
   Play,
   Pause,
+  Lock,
+  ShieldCheck,
 } from "lucide-react";
 
 export const PublicWebsiteView: React.FC = () => {
@@ -168,18 +170,20 @@ export const PublicWebsiteView: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 font-sans">
       {/* Top Banner with ERP Return Switcher */}
-      <div className="bg-slate-900 text-white px-4 py-2 text-xs flex items-center justify-between">
+      <div className="bg-slate-900 text-white px-4 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          <span className="font-semibold">Public Website Live Preview Mode</span>
-          <span className="text-slate-400 hidden sm:inline">
-            • Active Tenant: {currentTenant?.name}
+          <span className="font-semibold">Public Website Live Mode</span>
+          <span className="text-slate-400 hidden sm:inline">•</span>
+          <span className="text-emerald-400 font-mono font-bold flex items-center gap-1 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
+            <Lock className="w-3 h-3 text-emerald-400" />
+            https://{(currentTenant?.subdomain || currentTenant?.code || "tenant").toLowerCase()}.davetecherp.com
           </span>
         </div>
         <button
           type="button"
           onClick={() => setViewMode("erp")}
-          className="flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300"
+          className="flex items-center gap-1 text-xs font-bold text-indigo-400 hover:text-indigo-300 cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Return to ERP Portal</span>
@@ -448,7 +452,11 @@ export const PublicWebsiteView: React.FC = () => {
               <h4 className="text-white font-bold text-sm">{currentTenant?.name}</h4>
             </div>
             <p className="text-slate-400">{currentTenant?.motto}</p>
-            <div className="text-slate-500">© 2026 DAVETECH ERP Multi-Tenant Platform</div>
+            <div className="font-mono text-indigo-400 text-[11px] flex items-center gap-1.5 pt-1">
+              <Lock className="w-3 h-3 text-emerald-400" />
+              <span>https://{(currentTenant?.subdomain || currentTenant?.code || "tenant").toLowerCase()}.davetecherp.com</span>
+            </div>
+            <div className="text-slate-500 pt-1">© 2026 DAVETECH ERP Multi-Tenant Cloud Platform</div>
           </div>
 
           <div className="space-y-2">

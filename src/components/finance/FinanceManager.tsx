@@ -25,6 +25,8 @@ import {
   FileText,
   Calendar,
   Trash2,
+  Edit,
+  Copy,
   Layers,
 } from "lucide-react";
 
@@ -37,8 +39,9 @@ export const FinanceManager: React.FC = () => {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [feeStructures, setFeeStructures] = useState<FeeStructure[]>([]);
 
-  // Fee Structure Creation Modal
+  // Fee Structure Modal State
   const [isStructureModalOpen, setIsStructureModalOpen] = useState(false);
+  const [editingStructureId, setEditingStructureId] = useState<string | null>(null);
   const [structureForm, setStructureForm] = useState({
     title: "Grade 1 - 2026 Term 1 Fees",
     gradeOrClass: "Grade 1",
@@ -167,34 +170,108 @@ export const FinanceManager: React.FC = () => {
     setIsInvoiceModalOpen(false);
   };
 
+  const handleOpenCreateStructure = () => {
+    setEditingStructureId(null);
+    setStructureForm({
+      title: "Grade 1 - 2026 Term 1 Fees",
+      gradeOrClass: "Grade 1",
+      academicYear: "2026",
+      termOrSemester: "Term 1",
+      items: [
+        { title: "Tuition & Faculty", amount: 25000 },
+        { title: "CBC Learning Materials & Exams", amount: 5000 },
+        { title: "Activity & Co-Curricular", amount: 3000 },
+        { title: "School Lunch & Catering", amount: 5000 },
+      ],
+    });
+    setIsStructureModalOpen(true);
+  };
+
+  const handleOpenEditStructure = (fs: FeeStructure) => {
+    setEditingStructureId(fs.id);
+    const existingTitle = fs.title || `${fs.gradeOrClass || fs.gradeOrCourse || "Grade"} - ${fs.academicYear} ${fs.termOrSemester || fs.term || "Term 1"} Fees`;
+    const normalizedItems = (fs.items && fs.items.length > 0)
+      ? fs.items.map((it) => ({
+          title: it.title || it.name || "Tuition & Fees",
+          amount: Number(it.amount) || 0,
+        }))
+      : [{ title: "Tuition & Faculty", amount: 20000 }];
+
+    setStructureForm({
+      title: existingTitle,
+      gradeOrClass: fs.gradeOrClass || fs.gradeOrCourse || "Grade 1",
+      academicYear: fs.academicYear || "2026",
+      termOrSemester: fs.termOrSemester || fs.term || "Term 1",
+      items: normalizedItems,
+    });
+    setIsStructureModalOpen(true);
+  };
+
+  const handleDuplicateStructure = (fs: FeeStructure) => {
+    setEditingStructureId(null);
+    const existingTitle = fs.title || `${fs.gradeOrClass || fs.gradeOrCourse || "Grade"} Fees`;
+    const normalizedItems = (fs.items && fs.items.length > 0)
+      ? fs.items.map((it) => ({
+          title: it.title || it.name || "Tuition & Fees",
+          amount: Number(it.amount) || 0,
+        }))
+      : [{ title: "Tuition & Faculty", amount: 20000 }];
+
+    setStructureForm({
+      title: `${existingTitle} (Copy)`,
+      gradeOrClass: fs.gradeOrClass || fs.gradeOrCourse || "Grade 1",
+      academicYear: fs.academicYear || "2026",
+      termOrSemester: fs.termOrSemester || fs.term || "Term 1",
+      items: normalizedItems,
+    });
+    setIsStructureModalOpen(true);
+  };
+
   const handleSaveFeeStructure = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentTenant) return;
 
     const total = structureForm.items.reduce((acc, it) => acc + (Number(it.amount) || 0), 0);
+    const targetId = editingStructureId || ("fee_str_" + Date.now());
+
+    // Normalize items with both title & name for cross-module compatibility
+    const normalizedItems = structureForm.items.map((it) => ({
+      title: it.title,
+      name: it.title,
+      amount: Number(it.amount) || 0,
+    }));
+
     const payload: FeeStructure = {
-      id: "fee_str_" + Date.now(),
+      id: targetId,
       tenantId: currentTenant.id,
       branchId: currentBranch?.id || "main",
       title: structureForm.title,
       educationLevel: currentTenant.type === "school_primary" ? "primary" : "college",
       gradeOrClass: structureForm.gradeOrClass,
+      gradeOrCourse: structureForm.gradeOrClass,
       academicYear: structureForm.academicYear,
+      term: structureForm.termOrSemester,
       termOrSemester: structureForm.termOrSemester,
       totalAmount: total,
-      items: structureForm.items,
+      items: normalizedItems,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
     await saveFeeStructure(currentTenant.id, payload, { name: currentUser.name });
     setIsStructureModalOpen(false);
+    setEditingStructureId(null);
   };
 
-  const handleDeleteFeeStructure = async (structureId: string, title: string) => {
+  const handleDeleteFeeStructure = async (structureId: string, title?: string) => {
     if (!currentTenant) return;
-    if (window.confirm(`Delete fee structure "${title}"?`)) {
+    const displayName = title || "this fee structure";
+    if (window.confirm(`Are you sure you want to permanently delete "${displayName}"?`)) {
       await deleteFeeStructure(currentTenant.id, structureId, { name: currentUser.name });
+      if (isStructureModalOpen && editingStructureId === structureId) {
+        setIsStructureModalOpen(false);
+        setEditingStructureId(null);
+      }
     }
   };
 
@@ -229,8 +306,8 @@ export const FinanceManager: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setIsStructureModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors"
+            onClick={handleOpenCreateStructure}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-bold transition-colors cursor-pointer"
           >
             <Plus className="w-4 h-4 text-indigo-600" />
             <span>New Fee Structure</span>
@@ -440,8 +517,8 @@ export const FinanceManager: React.FC = () => {
             </div>
             <button
               type="button"
-              onClick={() => setIsStructureModalOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-colors"
+              onClick={handleOpenCreateStructure}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-colors cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create Fee Structure</span>
@@ -449,52 +526,110 @@ export const FinanceManager: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {feeStructures.map((fs) => (
-              <div
-                key={fs.id}
-                className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between"
-              >
-                <div>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md">
-                        {fs.gradeOrClass} • {fs.academicYear} {fs.termOrSemester}
-                      </span>
-                      <h4 className="text-sm font-bold text-slate-900 mt-2">{fs.title}</h4>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteFeeStructure(fs.id, fs.title)}
-                      className="text-slate-400 hover:text-rose-600 p-1 rounded-md hover:bg-rose-50 transition-colors"
-                      title="Delete Fee Structure"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+            {feeStructures.map((fs) => {
+              const displayTitle = fs.title || `${fs.gradeOrClass || fs.gradeOrCourse || "Grade"} Fee Schedule`;
+              const displayGrade = fs.gradeOrClass || fs.gradeOrCourse || "All Grades";
+              const displayTerm = fs.termOrSemester || fs.term || "Term 1";
 
-                  <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-3">
-                    <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1">
-                      Itemized Breakdown
-                    </div>
-                    {fs.items.map((it, idx) => (
-                      <div key={idx} className="flex justify-between text-xs text-slate-600">
-                        <span className="truncate max-w-[180px]">{it.title}</span>
-                        <span className="font-semibold text-slate-900">
-                          {currency} {it.amount.toLocaleString()}
-                        </span>
+              return (
+                <div
+                  key={fs.id}
+                  className="bg-white rounded-xl border border-slate-200 p-5 shadow-xs hover:border-indigo-300 transition-all flex flex-col justify-between group"
+                >
+                  <div>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-md">
+                            {displayGrade}
+                          </span>
+                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded-md">
+                            {fs.academicYear} • {displayTerm}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900 truncate" title={displayTitle}>
+                          {displayTitle}
+                        </h4>
                       </div>
-                    ))}
+
+                      {/* Top Action Icons */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEditStructure(fs)}
+                          className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                          title="Edit Fee Structure"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDuplicateStructure(fs)}
+                          className="text-slate-400 hover:text-indigo-600 p-1.5 rounded-lg hover:bg-indigo-50 transition-colors"
+                          title="Duplicate Fee Structure"
+                        >
+                          <Copy className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteFeeStructure(fs.id, displayTitle)}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-rose-50 transition-colors"
+                          title="Delete Fee Structure"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 space-y-1.5 border-t border-slate-100 pt-3">
+                      <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">
+                        <span>Itemized Votehead Breakdown</span>
+                        <span>{fs.items?.length || 0} Items</span>
+                      </div>
+                      <div className="space-y-1 max-h-36 overflow-y-auto pr-1">
+                        {fs.items?.map((it, idx) => (
+                          <div key={idx} className="flex justify-between items-center text-xs text-slate-600 py-0.5">
+                            <span className="truncate pr-2">{it.title || it.name}</span>
+                            <span className="font-semibold text-slate-900 font-mono shrink-0">
+                              {currency} {(Number(it.amount) || 0).toLocaleString()}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-500">Total Billed:</span>
+                      <span className="text-base font-black text-indigo-700 font-mono">
+                        {currency} {(Number(fs.totalAmount) || 0).toLocaleString()}
+                      </span>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditStructure(fs)}
+                        className="flex-1 py-1.5 px-3 bg-slate-50 hover:bg-indigo-50 text-slate-700 hover:text-indigo-700 font-bold text-[11px] rounded-lg border border-slate-200 hover:border-indigo-300 flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                      >
+                        <Edit className="w-3.5 h-3.5" />
+                        <span>Edit Schedule</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteFeeStructure(fs.id, displayTitle)}
+                        className="py-1.5 px-2.5 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-lg border border-slate-200 hover:border-rose-200 transition-colors cursor-pointer"
+                        title="Delete Fee Structure"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-
-                <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-xs font-bold text-slate-500">Total Billed:</span>
-                  <span className="text-base font-black text-indigo-700">
-                    {currency} {fs.totalAmount.toLocaleString()}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
 
             {feeStructures.length === 0 && (
               <div className="col-span-full py-12 text-center text-slate-400 bg-white rounded-xl border border-slate-200">
@@ -760,15 +895,23 @@ export const FinanceManager: React.FC = () => {
         </div>
       )}
 
-      {/* CREATE FEE STRUCTURE MODAL */}
+      {/* CREATE / EDIT FEE STRUCTURE MODAL */}
       {isStructureModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
           <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 my-8">
             <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-              <h3 className="text-sm font-bold text-slate-900">Define New Institutional Fee Structure</h3>
+              <div className="flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-sm font-bold text-slate-900">
+                  {editingStructureId ? "Edit Institutional Fee Structure" : "Define New Institutional Fee Structure"}
+                </h3>
+              </div>
               <button
-                onClick={() => setIsStructureModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
+                onClick={() => {
+                  setIsStructureModalOpen(false);
+                  setEditingStructureId(null);
+                }}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -839,10 +982,10 @@ export const FinanceManager: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleAddStructureItem}
-                    className="flex items-center gap-1 text-[11px] text-indigo-600 font-bold hover:underline"
+                    className="flex items-center gap-1 text-[11px] text-indigo-600 font-bold hover:underline cursor-pointer"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>Add Item</span>
+                    <span>Add Votehead</span>
                   </button>
                 </div>
 
@@ -852,7 +995,7 @@ export const FinanceManager: React.FC = () => {
                       <input
                         type="text"
                         required
-                        placeholder="Votehead Name"
+                        placeholder="Votehead Name (e.g. Tuition, Lab, Lunch)"
                         value={it.title}
                         onChange={(e) => {
                           const next = [...structureForm.items];
@@ -882,7 +1025,8 @@ export const FinanceManager: React.FC = () => {
                         <button
                           type="button"
                           onClick={() => handleRemoveStructureItem(idx)}
-                          className="text-slate-400 hover:text-rose-600 p-1"
+                          className="text-slate-400 hover:text-rose-600 p-1 cursor-pointer"
+                          title="Remove item"
                         >
                           <X className="w-4 h-4" />
                         </button>
@@ -893,7 +1037,7 @@ export const FinanceManager: React.FC = () => {
 
                 <div className="pt-2 border-t border-slate-200 flex justify-between items-center text-xs">
                   <span className="font-bold text-slate-700">Total Calculation:</span>
-                  <span className="font-black text-indigo-700 text-sm">
+                  <span className="font-black text-indigo-700 text-sm font-mono">
                     {currency}{" "}
                     {structureForm.items
                       .reduce((sum, it) => sum + (Number(it.amount) || 0), 0)
@@ -902,20 +1046,38 @@ export const FinanceManager: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsStructureModalOpen(false)}
-                  className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md"
-                >
-                  Save Fee Structure
-                </button>
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                {editingStructureId ? (
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteFeeStructure(editingStructureId, structureForm.title)}
+                    className="flex items-center gap-1.5 px-3 py-2 text-rose-600 hover:bg-rose-50 rounded-lg font-semibold text-xs transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Structure</span>
+                  </button>
+                ) : (
+                  <div />
+                )}
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsStructureModalOpen(false);
+                      setEditingStructureId(null);
+                    }}
+                    className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg font-semibold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md cursor-pointer transition-colors"
+                  >
+                    {editingStructureId ? "Update Fee Structure" : "Save Fee Structure"}
+                  </button>
+                </div>
               </div>
             </form>
           </div>

@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
+import { compressImageToDataUrl, dataUrlToFile } from "../utils/imageUtils";
 import type {
   Tenant,
   Branch,
@@ -698,15 +699,38 @@ export async function uploadFileToStorage(
   pathFolder: string,
   file: File
 ): Promise<string> {
+  // 1. If image file, compress to high-quality lightweight data URL first
+  let compressedDataUrl = "";
+  let fileToUpload = file;
+
+  if (file.type.startsWith("image/")) {
+    try {
+      const isBanner = pathFolder.includes("slide") || pathFolder.includes("hero") || pathFolder.includes("gallery");
+      compressedDataUrl = await compressImageToDataUrl(file, {
+        maxWidth: isBanner ? 1280 : 400,
+        maxHeight: isBanner ? 720 : 400,
+        quality: 0.85,
+        mimeType: file.type.includes("png") ? "image/png" : "image/jpeg",
+      });
+      fileToUpload = dataUrlToFile(compressedDataUrl, file.name);
+    } catch (compErr) {
+      console.warn("Image pre-compression warning:", compErr);
+    }
+  }
+
+  // 2. Try Firebase Storage upload
   try {
     const safeName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9.]/g, "_")}`;
     const storageReference = ref(storage, `tenants/${tenantId}/${pathFolder}/${safeName}`);
-    await uploadBytes(storageReference, file);
+    await uploadBytes(storageReference, fileToUpload);
     const downloadUrl = await getDownloadURL(storageReference);
     return downloadUrl;
   } catch (error) {
-    console.warn("Storage upload fallback to object URL/base64:", error);
-    // Fallback: convert to base64 data URL if storage bucket rule is restrictive
+    console.warn("Storage upload fallback to compressed Data URL:", error);
+    if (compressedDataUrl) {
+      return compressedDataUrl;
+    }
+    // Fallback: convert to base64 data URL
     return new Promise((resolve) => {
       const reader = new FileReader();
       reader.onloadend = () => resolve(reader.result as string);
@@ -745,6 +769,8 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
       currency: "KES",
       primaryColor: "#0284c7", // Sky blue
       motto: "Empowering Next-Generation Professionals",
+      subdomain: "bitc",
+      customDomain: "portal.breakthroughcollege.ac.ke",
       enabledModules: [
         "education",
         "admissions",
@@ -783,6 +809,8 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
       currency: "KES",
       primaryColor: "#059669", // Emerald
       motto: "Nurturing Every Learner's Potential with Excellence",
+      subdomain: "staustin",
+      customDomain: "portal.staustin.edu",
       enabledModules: [
         "education",
         "primary_cbc",
