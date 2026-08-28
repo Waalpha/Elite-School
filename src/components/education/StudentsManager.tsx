@@ -797,9 +797,21 @@ export const StudentsManager: React.FC = () => {
 
             {/* ID Card Visual */}
             <div className="mt-4 border-2 border-indigo-600 rounded-2xl overflow-hidden shadow-lg bg-white text-center">
-              <div className="bg-indigo-600 text-white p-3">
-                <div className="text-xs font-bold uppercase tracking-wider">{currentTenant?.name}</div>
-                <div className="text-[10px] text-indigo-100">{currentTenant?.motto}</div>
+              <div className="bg-indigo-600 text-white p-3 flex items-center justify-center gap-2.5">
+                {currentTenant?.logo && (
+                  <img
+                    src={currentTenant.logo}
+                    alt=""
+                    className="w-8 h-8 rounded-lg object-contain bg-white p-0.5 shrink-0 shadow-xs"
+                    onError={(e) => {
+                      (e.target as HTMLElement).style.display = "none";
+                    }}
+                  />
+                )}
+                <div className="text-left">
+                  <div className="text-xs font-bold uppercase tracking-wider leading-tight">{currentTenant?.name}</div>
+                  <div className="text-[9px] text-indigo-100 leading-tight">{currentTenant?.motto}</div>
+                </div>
               </div>
 
               <div className="p-4 space-y-3">

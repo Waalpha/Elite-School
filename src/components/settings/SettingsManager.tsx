@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useTenant } from "../../context/TenantContext";
 import { saveTenant, uploadFileToStorage } from "../../services/firestoreService";
 import { compressImageToDataUrl } from "../../utils/imageUtils";
@@ -24,6 +24,7 @@ import {
   ShieldCheck,
   Lock,
   Network,
+  Trash2,
 } from "lucide-react";
 
 export const SettingsManager: React.FC = () => {
@@ -31,22 +32,41 @@ export const SettingsManager: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
-    name: currentTenant?.name || "",
-    motto: currentTenant?.motto || "",
-    logo: currentTenant?.logo || "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=160",
-    email: currentTenant?.email || "",
-    phone: currentTenant?.phone || "",
-    address: currentTenant?.address || "",
-    website: currentTenant?.website || "",
-    subdomain: currentTenant?.subdomain || currentTenant?.code?.toLowerCase() || "",
-    customDomain: currentTenant?.customDomain || "",
-    currency: currentTenant?.currency || "KES",
-    primaryColor: currentTenant?.primaryColor || "#4f46e5",
-    subscriptionPlan: currentTenant?.subscriptionPlan || "enterprise",
+    name: "",
+    motto: "",
+    logo: "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=160",
+    email: "",
+    phone: "",
+    address: "",
+    website: "",
+    subdomain: "",
+    customDomain: "",
+    currency: "KES",
+    primaryColor: "#4f46e5",
+    subscriptionPlan: "enterprise",
   });
 
-  const [copiedSubdomain, setCopiedSubdomain] = useState(false);
+  // Sync formData whenever currentTenant updates or loads
+  useEffect(() => {
+    if (currentTenant) {
+      setFormData({
+        name: currentTenant.name || "",
+        motto: currentTenant.motto || "",
+        logo: currentTenant.logo || "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=160",
+        email: currentTenant.email || "",
+        phone: currentTenant.phone || "",
+        address: currentTenant.address || "",
+        website: currentTenant.website || "",
+        subdomain: currentTenant.subdomain || currentTenant.code?.toLowerCase() || "",
+        customDomain: currentTenant.customDomain || "",
+        currency: currentTenant.currency || "KES",
+        primaryColor: currentTenant.primaryColor || "#4f46e5",
+        subscriptionPlan: currentTenant.subscriptionPlan || "enterprise",
+      });
+    }
+  }, [currentTenant?.id, currentTenant?.logo, currentTenant?.name]);
 
+  const [copiedSubdomain, setCopiedSubdomain] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -64,7 +84,7 @@ export const SettingsManager: React.FC = () => {
 
   if (!currentTenant) return null;
 
-  // Process file upload
+  // Process file upload and save immediately
   const processAndApplyLogo = async (file: File) => {
     if (!file || !currentTenant) return;
 
@@ -78,11 +98,11 @@ export const SettingsManager: React.FC = () => {
     setLogoSuccessMessage(null);
 
     try {
-      // 1. Client-side compress to crisp web-ready image
+      // 1. Client-side compress to crisp web-ready image (<35KB)
       const compressedUrl = await compressImageToDataUrl(file, {
-        maxWidth: 400,
-        maxHeight: 400,
-        quality: 0.9,
+        maxWidth: 256,
+        maxHeight: 256,
+        quality: 0.85,
         mimeType: file.type.includes("png") ? "image/png" : "image/jpeg",
       });
 
@@ -109,7 +129,7 @@ export const SettingsManager: React.FC = () => {
       });
       setCurrentTenant(updatedTenant);
 
-      setLogoSuccessMessage("Logo updated and synced successfully!");
+      setLogoSuccessMessage("Logo saved & synchronized successfully!");
       setTimeout(() => setLogoSuccessMessage(null), 4000);
     } catch (err: any) {
       console.error("Logo upload error:", err);
@@ -145,35 +165,57 @@ export const SettingsManager: React.FC = () => {
   };
 
   const handleApplyPreset = async (presetUrl: string) => {
-    if (!currentTenant) return;
-    setFormData((prev) => ({ ...prev, logo: presetUrl }));
-    const updatedTenant = {
-      ...currentTenant,
-      logo: presetUrl,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveTenant(updatedTenant, {
-      name: currentUser.name,
-      email: currentUser.email,
-    });
-    setCurrentTenant(updatedTenant);
-    setLogoSuccessMessage("Preset logo applied!");
-    setTimeout(() => setLogoSuccessMessage(null), 3000);
+    if (!currentTenant || !presetUrl.trim()) return;
+    setUploadingLogo(true);
+    setLogoErrorMessage(null);
+    try {
+      setFormData((prev) => ({ ...prev, logo: presetUrl.trim() }));
+      const updatedTenant = {
+        ...currentTenant,
+        logo: presetUrl.trim(),
+        updatedAt: new Date().toISOString(),
+      };
+      await saveTenant(updatedTenant, {
+        name: currentUser.name,
+        email: currentUser.email,
+      });
+      setCurrentTenant(updatedTenant);
+      setLogoSuccessMessage("Logo applied & saved successfully!");
+      setTimeout(() => setLogoSuccessMessage(null), 3500);
+    } catch (err: any) {
+      console.error("Apply logo error:", err);
+      setLogoErrorMessage("Failed to save logo. Please try again.");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
+  const handleResetLogo = async () => {
+    const defaultLogo =
+      currentTenant.type === "school_primary"
+        ? "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=200"
+        : "https://images.unsplash.com/photo-1592280771190-3e2e4d571952?w=200";
+    await handleApplyPreset(defaultLogo);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
-    const updatedTenant = {
-      ...currentTenant,
-      ...formData,
-      updatedAt: new Date().toISOString(),
-    };
-    await saveTenant(updatedTenant, { name: currentUser.name, email: currentUser.email });
-    setCurrentTenant(updatedTenant);
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    try {
+      const updatedTenant = {
+        ...currentTenant,
+        ...formData,
+        updatedAt: new Date().toISOString(),
+      };
+      await saveTenant(updatedTenant, { name: currentUser.name, email: currentUser.email });
+      setCurrentTenant(updatedTenant);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3500);
+    } catch (err: any) {
+      console.error("Save settings error:", err);
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -229,27 +271,40 @@ export const SettingsManager: React.FC = () => {
             }`}
           >
             {/* Logo Preview */}
-            <div className="relative group shrink-0 mx-auto sm:mx-0">
-              <img
-                src={formData.logo}
-                alt="Institutional Logo"
-                className="w-28 h-28 rounded-2xl object-contain border-2 border-white shadow-md bg-white p-1"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=160";
-                }}
-              />
+            <div className="relative group shrink-0 mx-auto sm:mx-0 flex flex-col items-center gap-2">
+              <div className="relative">
+                <img
+                  src={formData.logo}
+                  alt="Institutional Logo"
+                  className="w-28 h-28 rounded-2xl object-contain border-2 border-slate-200 shadow-md bg-white p-1.5"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).src = "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=160";
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploadingLogo}
+                  className="absolute inset-0 bg-slate-950/60 text-white rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[11px] font-bold"
+                >
+                  {uploadingLogo ? (
+                    <RefreshCw className="w-5 h-5 animate-spin mb-1" />
+                  ) : (
+                    <Camera className="w-5 h-5 mb-1" />
+                  )}
+                  <span>{uploadingLogo ? "Processing..." : "Change Logo"}</span>
+                </button>
+              </div>
+
               <button
                 type="button"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={handleResetLogo}
                 disabled={uploadingLogo}
-                className="absolute inset-0 bg-slate-950/50 text-white rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-[11px] font-bold"
+                className="text-[10px] text-slate-500 hover:text-rose-600 flex items-center gap-1 font-medium transition-colors"
+                title="Reset to standard institution crest"
               >
-                {uploadingLogo ? (
-                  <RefreshCw className="w-5 h-5 animate-spin mb-1" />
-                ) : (
-                  <Camera className="w-5 h-5 mb-1" />
-                )}
-                <span>{uploadingLogo ? "Processing..." : "Change Logo"}</span>
+                <Trash2 className="w-3 h-3" />
+                <span>Reset Logo</span>
               </button>
             </div>
 
@@ -259,7 +314,7 @@ export const SettingsManager: React.FC = () => {
                 <div>
                   <div className="text-xs font-bold text-slate-900">Upload Official Crest or School Badge</div>
                   <div className="text-[11px] text-slate-500">
-                    Drag and drop or click to upload PNG, JPG, WebP. Auto-optimized for web & documents.
+                    Drag and drop or click to upload PNG, JPG, WebP, SVG. Auto-compressed & stored instantly in Firestore.
                   </div>
                 </div>
 
@@ -282,7 +337,7 @@ export const SettingsManager: React.FC = () => {
                     ) : (
                       <Upload className="w-3.5 h-3.5" />
                     )}
-                    <span>{uploadingLogo ? "Optimizing & Saving..." : "Select Logo File"}</span>
+                    <span>{uploadingLogo ? "Saving Logo..." : "Upload Logo Image"}</span>
                   </button>
                 </div>
               </div>
@@ -298,14 +353,15 @@ export const SettingsManager: React.FC = () => {
                     value={formData.logo}
                     onChange={(e) => setFormData({ ...formData, logo: e.target.value })}
                     placeholder="https://example.com/logo.png"
-                    className="flex-1 p-2 rounded-lg border border-slate-200 text-xs font-mono bg-white"
+                    className="flex-1 p-2 rounded-lg border border-slate-200 text-xs font-mono bg-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                   <button
                     type="button"
                     onClick={() => handleApplyPreset(formData.logo)}
-                    className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-lg text-xs"
+                    disabled={uploadingLogo || !formData.logo.trim()}
+                    className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-lg text-xs transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    Apply URL
+                    Apply & Save URL
                   </button>
                 </div>
               </div>
@@ -318,7 +374,7 @@ export const SettingsManager: React.FC = () => {
                     key={idx}
                     type="button"
                     onClick={() => handleApplyPreset(preset.url)}
-                    className="text-[10px] bg-white border border-slate-200 hover:border-indigo-400 px-2 py-1 rounded-md text-slate-700 hover:text-indigo-600 font-medium whitespace-nowrap transition-colors"
+                    className="text-[10px] bg-white border border-slate-200 hover:border-indigo-400 hover:bg-indigo-50/40 px-2.5 py-1 rounded-md text-slate-700 hover:text-indigo-600 font-medium whitespace-nowrap transition-colors cursor-pointer"
                   >
                     {preset.name}
                   </button>

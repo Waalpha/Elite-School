@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useTenant } from "../../context/TenantContext";
 import type { AttendanceRecord, Student } from "../../types";
+import { QRAttendanceModal } from "./QRAttendanceModal";
 import {
   subscribeToAttendance,
   saveAttendanceRecord,
@@ -15,6 +16,9 @@ import {
   Sparkles,
   Users,
   Search,
+  QrCode,
+  Printer,
+  ShieldCheck,
 } from "lucide-react";
 
 export const AttendanceManager: React.FC = () => {
@@ -24,6 +28,7 @@ export const AttendanceManager: React.FC = () => {
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>([]);
   const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [selectedGrade, setSelectedGrade] = useState<string>("Grade 4");
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState<boolean>(false);
 
   // Local state of today's attendance for the selected grade
   const [attendanceStatus, setAttendanceStatus] = useState<
@@ -93,11 +98,15 @@ export const AttendanceManager: React.FC = () => {
     }
   };
 
-  const attendanceList = Object.values(attendanceStatus) as Array<{ status: "present" | "absent" | "late" | "excused"; remarks: string }>;
+  const attendanceList = Object.values(attendanceStatus) as Array<{
+    status: "present" | "absent" | "late" | "excused";
+    remarks: string;
+  }>;
   const presentCount = attendanceList.filter((v) => v.status === "present").length;
   const absentCount = attendanceList.filter((v) => v.status === "absent").length;
   const lateCount = attendanceList.filter((v) => v.status === "late").length;
-  const attendanceRate = gradeStudents.length > 0 ? Math.round((presentCount / gradeStudents.length) * 100) : 100;
+  const attendanceRate =
+    gradeStudents.length > 0 ? Math.round((presentCount / gradeStudents.length) * 100) : 100;
 
   return (
     <div className="space-y-6 pb-12">
@@ -106,14 +115,23 @@ export const AttendanceManager: React.FC = () => {
         <div>
           <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <CalendarCheck className="w-5 h-5 text-indigo-600" />
-            <span>Daily Attendance Register</span>
+            <span>Daily Attendance Register & QR Gate Log</span>
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Real-time roll call logging, daily absenteeism tracking, and automatic attendance statistics.
+            Real-time roll call logging, QR code scanning, daily absenteeism tracking, and attendance analytics.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsQRScannerOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+          >
+            <QrCode className="w-4 h-4" />
+            <span>Scan QR Attendance</span>
+          </button>
+
           <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 text-xs">
             <Calendar className="w-4 h-4 text-slate-400" />
             <input
@@ -127,7 +145,7 @@ export const AttendanceManager: React.FC = () => {
           <button
             type="button"
             onClick={handleMarkAllPresent}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-md transition-colors"
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
           >
             <CheckCircle2 className="w-4 h-4" />
             <span>Mark All Present</span>
@@ -137,7 +155,7 @@ export const AttendanceManager: React.FC = () => {
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
           <div className="text-[11px] font-bold text-slate-400 uppercase">Roll Call Total</div>
           <div className="text-2xl font-black text-slate-900 mt-1">{gradeStudents.length}</div>
         </div>
@@ -155,16 +173,30 @@ export const AttendanceManager: React.FC = () => {
         </div>
       </div>
 
-      {/* Class Selector Filter */}
-      <div className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between">
-        <div className="text-xs font-bold text-slate-700">Filter Class / Grade:</div>
-        <input
-          type="text"
-          value={selectedGrade}
-          onChange={(e) => setSelectedGrade(e.target.value)}
-          placeholder="e.g. Grade 4, PP1, Year 1"
-          className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold"
-        />
+      {/* Class Selector Filter & QR Trigger Banner */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 bg-white p-3.5 rounded-xl border border-slate-200">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <span className="text-xs font-bold text-slate-700 shrink-0">Filter Class / Grade:</span>
+          <input
+            type="text"
+            value={selectedGrade}
+            onChange={(e) => setSelectedGrade(e.target.value)}
+            placeholder="e.g. Grade 4, PP1, Year 1"
+            className="px-3 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold w-full sm:w-64"
+          />
+        </div>
+
+        <div className="flex items-center gap-2 text-xs">
+          <span className="text-slate-500 font-medium">Fast roll call:</span>
+          <button
+            type="button"
+            onClick={() => setIsQRScannerOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-bold border border-indigo-200 transition-colors cursor-pointer"
+          >
+            <QrCode className="w-3.5 h-3.5 text-indigo-600" />
+            <span>Launch Camera Scanner</span>
+          </button>
+        </div>
       </div>
 
       {/* Attendance Table */}
@@ -173,6 +205,7 @@ export const AttendanceManager: React.FC = () => {
           <thead className="bg-slate-50 text-[10px] font-bold text-slate-700 uppercase border-b border-slate-200">
             <tr>
               <th className="py-3 px-4">Learner / Student</th>
+              <th className="py-3 px-4">National & Exam IDs</th>
               <th className="py-3 px-4">Class</th>
               <th className="py-3 px-4 text-center">Attendance Status</th>
               <th className="py-3 px-4">Notes / Reason</th>
@@ -188,12 +221,18 @@ export const AttendanceManager: React.FC = () => {
                       <img
                         src={st.photoUrl}
                         alt=""
-                        className="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0"
+                        className="w-9 h-9 rounded-lg object-cover border border-slate-200 shrink-0 shadow-2xs"
                       />
                       <div>
                         <div className="font-bold text-slate-900">{st.firstName} {st.lastName}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{st.admissionNo}</div>
+                        <div className="text-[10px] text-slate-400 font-mono">ADM: {st.admissionNo}</div>
                       </div>
+                    </div>
+                  </td>
+                  <td className="py-3 px-4">
+                    <div className="text-[10px] font-mono space-y-0.5">
+                      <div className="text-emerald-700 font-bold">NEMIS: {st.nemisNumber || "NEMIS-PEND"}</div>
+                      <div className="text-indigo-600 font-bold">ASSESSMENT: {st.assessmentNumber || "CBA-ACTIVE"}</div>
                     </div>
                   </td>
                   <td className="py-3 px-4 font-medium text-slate-800">{st.gradeOrClass}</td>
@@ -202,7 +241,7 @@ export const AttendanceManager: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleSetStatus(st.id, "present")}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           current === "present"
                             ? "bg-emerald-600 text-white shadow-xs"
                             : "bg-slate-100 text-slate-600 hover:bg-emerald-50 hover:text-emerald-700"
@@ -213,7 +252,7 @@ export const AttendanceManager: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleSetStatus(st.id, "absent")}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           current === "absent"
                             ? "bg-rose-600 text-white shadow-xs"
                             : "bg-slate-100 text-slate-600 hover:bg-rose-50 hover:text-rose-700"
@@ -224,7 +263,7 @@ export const AttendanceManager: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => handleSetStatus(st.id, "late")}
-                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                        className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                           current === "late"
                             ? "bg-amber-600 text-white shadow-xs"
                             : "bg-slate-100 text-slate-600 hover:bg-amber-50 hover:text-amber-700"
@@ -254,7 +293,7 @@ export const AttendanceManager: React.FC = () => {
 
             {gradeStudents.length === 0 && (
               <tr>
-                <td colSpan={4} className="py-12 text-center text-slate-400">
+                <td colSpan={5} className="py-12 text-center text-slate-400">
                   No students in this class. Select a different grade above.
                 </td>
               </tr>
@@ -262,6 +301,22 @@ export const AttendanceManager: React.FC = () => {
           </tbody>
         </table>
       </div>
+
+      {/* QR Attendance Scanner Modal */}
+      <QRAttendanceModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+        students={students}
+        tenant={currentTenant}
+        currentUser={currentUser}
+        selectedDate={selectedDate}
+        onStudentScanned={(student, status) => {
+          setAttendanceStatus((prev) => ({
+            ...prev,
+            [student.id]: { status, remarks: `QR Gate Check-in` },
+          }));
+        }}
+      />
     </div>
   );
 };

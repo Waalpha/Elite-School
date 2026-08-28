@@ -98,14 +98,46 @@ export interface Student {
   stream?: string; // e.g. "East", "West", "Alpha", "Blue"
   academicYear: string;
   termOrSemester: string;
+  
+  // National & Examination Identifiers
+  assessmentNumber?: string; // KNEC Assessment / CBA / Index Number
+  nemisNumber?: string; // NEMIS / National Education Management Information System Number
+  upi?: string; // Unique Personal Identifier (Ministry of Education)
+  birthCertificateNo?: string;
+
+  // Complete Student Biography & Demographics
+  bio?: string; // Detailed bio, personal aspirations, strengths, character notes
+  nationality?: string;
+  religion?: string;
+  county?: string;
+  subCounty?: string;
+  residenceAddress?: string;
+
+  // Guardian & Family Contact Details
   guardianName: string;
   guardianPhone: string;
   guardianEmail?: string;
   guardianRelationship?: string;
+  guardianOccupation?: string;
+  guardianIdNumber?: string;
+  guardianAltPhone?: string;
   emergencyContact?: string;
+
+  // Medical & Special Educational Needs
+  bloodGroup?: string;
   medicalInfo?: string;
+  allergies?: string;
+  dietaryRequirements?: string;
+  specialNeeds?: string;
+
+  // Extracurricular & Interests
+  talentsAndHobbies?: string;
+  clubMemberships?: string[];
   previousSchool?: string;
+  enrollmentDate?: string;
   photoUrl?: string;
+
+  // Financial & Enrollment Status
   status: 'active' | 'graduated' | 'transferred' | 'suspended' | 'alumni';
   totalFeeBilled: number;
   totalFeePaid: number;
