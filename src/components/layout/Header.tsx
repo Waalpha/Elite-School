@@ -17,6 +17,7 @@ import {
   QrCode,
   Lock,
   Copy,
+  LogOut,
 } from "lucide-react";
 
 interface HeaderProps {
@@ -35,12 +36,15 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
     setCurrentUserRole,
     viewMode,
     setViewMode,
+    platformConfig,
     getTenantSubdomainUrl,
+    logout,
   } = useTenant();
 
   const [tenantDropdownOpen, setTenantDropdownOpen] = useState(false);
   const [branchDropdownOpen, setBranchDropdownOpen] = useState(false);
   const [roleDropdownOpen, setRoleDropdownOpen] = useState(false);
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false);
   const [copiedHeaderSubdomain, setCopiedHeaderSubdomain] = useState(false);
 
@@ -59,19 +63,33 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
         <div className="flex items-center justify-between h-16 gap-4">
           {/* Brand & Active Tenant */}
           <div className="flex items-center gap-4 min-w-0">
-            <div className="flex items-center gap-2 shrink-0">
-              <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-lg shadow-sm">
-                D
-              </div>
+            <button
+              type="button"
+              onClick={() => setViewMode("davetech_home")}
+              className="flex items-center gap-2.5 shrink-0 text-left cursor-pointer group"
+              title="Go to Davetech Main Page"
+            >
+              <img
+                src={platformConfig.logo}
+                alt={platformConfig.name}
+                className="w-9 h-9 rounded-lg object-contain bg-white border border-slate-200 p-1 shadow-xs group-hover:border-indigo-500 transition-colors"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src =
+                    "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=160";
+                }}
+              />
               <div className="hidden sm:block">
-                <div className="text-xs font-semibold tracking-wider text-slate-500 uppercase">
-                  DAVETECH ERP
+                <div className="text-[10px] font-extrabold tracking-wider text-indigo-600 uppercase flex items-center gap-1">
+                  <span>{platformConfig.brandName}</span>
+                  <span className="text-[9px] bg-indigo-50 text-indigo-700 px-1.5 py-0.2 rounded font-mono">
+                    Cloud OS
+                  </span>
                 </div>
-                <div className="text-sm font-bold text-slate-900 leading-tight">
-                  Multi-Tenant Platform
+                <div className="text-xs font-bold text-slate-900 leading-tight group-hover:text-indigo-600 transition-colors truncate max-w-[140px]">
+                  {platformConfig.name}
                 </div>
               </div>
-            </div>
+            </button>
 
             <div className="h-6 w-px bg-slate-200 hidden md:block" />
 
@@ -240,6 +258,22 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
             {/* View Mode Toggle Pill */}
             <div className="flex items-center p-1 rounded-xl bg-slate-100 border border-slate-200">
               <button
+                id="view_davetech_home_button"
+                type="button"
+                onClick={() => setViewMode("davetech_home")}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                  viewMode === "davetech_home"
+                    ? "bg-indigo-600 text-white shadow-xs"
+                    : "text-slate-600 hover:text-slate-900"
+                }`}
+                title="DAVETECH Public Website & Solutions Catalog"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                <span className="hidden sm:inline">Public Solutions</span>
+                <span className="sm:hidden">Portal</span>
+              </button>
+
+              <button
                 id="view_erp_button"
                 type="button"
                 onClick={() => setViewMode("erp")}
@@ -248,9 +282,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
                     ? "bg-white text-slate-900 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
+                title="School ERP Backend System"
               >
                 <Layers className="w-3.5 h-3.5 text-indigo-600" />
-                <span>Tenant ERP</span>
+                <span className="hidden sm:inline">School ERP Backend</span>
+                <span className="sm:hidden">ERP</span>
               </button>
 
               <button
@@ -262,9 +298,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
                     ? "bg-white text-slate-900 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
+                title="School Public Website"
               >
                 <Globe className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Public Website & CMS</span>
+                <span className="hidden sm:inline">School Website</span>
+                <span className="sm:hidden">Web</span>
               </button>
 
               <button
@@ -276,9 +314,11 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
                     ? "bg-white text-slate-900 shadow-xs"
                     : "text-slate-600 hover:text-slate-900"
                 }`}
+                title="Platform Super Admin"
               >
                 <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
-                <span>Platform Admin</span>
+                <span className="hidden sm:inline">Super Admin</span>
+                <span className="sm:hidden">Admin</span>
               </button>
             </div>
 
@@ -301,6 +341,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
                 type="button"
                 onClick={() => {
                   setRoleDropdownOpen(!roleDropdownOpen);
+                  setUserMenuOpen(false);
                   setTenantDropdownOpen(false);
                   setBranchDropdownOpen(false);
                 }}
@@ -341,6 +382,78 @@ export const Header: React.FC<HeaderProps> = ({ onOpenNewTenantModal }) => {
                         {currentUser.role === r.role && <Check className="w-3.5 h-3.5 text-indigo-600" />}
                       </button>
                     ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Authenticated Google Account Profile & Sign Out */}
+            <div className="relative">
+              <button
+                id="user_profile_menu_button"
+                type="button"
+                onClick={() => {
+                  setUserMenuOpen(!userMenuOpen);
+                  setRoleDropdownOpen(false);
+                  setTenantDropdownOpen(false);
+                  setBranchDropdownOpen(false);
+                }}
+                className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 transition-colors shadow-xs"
+                title={`Signed in as ${currentUser.email}`}
+              >
+                {currentUser.avatarUrl ? (
+                  <img
+                    src={currentUser.avatarUrl}
+                    alt={currentUser.name}
+                    className="w-6 h-6 rounded-full object-cover border border-slate-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-6 h-6 rounded-full bg-indigo-600 text-white font-bold text-[10px] flex items-center justify-center shrink-0">
+                    {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : "D"}
+                  </div>
+                )}
+                <div className="hidden sm:block text-left max-w-[110px] truncate">
+                  <div className="text-xs font-bold text-slate-900 leading-tight truncate">
+                    {currentUser.name}
+                  </div>
+                  <div className="text-[9px] text-slate-400 truncate">
+                    {currentUser.email}
+                  </div>
+                </div>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+              </button>
+
+              {userMenuOpen && (
+                <div className="absolute right-0 mt-2 w-72 rounded-xl bg-white border border-slate-200 shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                  <div className="px-4 py-3 border-b border-slate-100 bg-slate-50/50">
+                    <div className="text-xs font-bold text-slate-900 truncate">
+                      {currentUser.name}
+                    </div>
+                    <div className="text-xs text-indigo-600 font-mono font-medium truncate mt-0.5">
+                      {currentUser.email}
+                    </div>
+                    <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-indigo-50 border border-indigo-100 text-[10px] font-bold text-indigo-700 uppercase">
+                      <ShieldCheck className="w-3 h-3 text-indigo-600" />
+                      <span>{currentUser.role.replace(/_/g, " ")}</span>
+                    </div>
+                  </div>
+
+                  <div className="p-2">
+                    <button
+                      id="sign_out_button"
+                      type="button"
+                      onClick={async () => {
+                        setUserMenuOpen(false);
+                        await logout();
+                      }}
+                      className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <span className="flex items-center gap-2">
+                        <LogOut className="w-4 h-4 text-rose-500" />
+                        <span>Sign Out of DAVETECH</span>
+                      </span>
+                      <span className="text-[10px] text-rose-400 font-normal">Exit</span>
+                    </button>
                   </div>
                 </div>
               )}

@@ -1,19 +1,31 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
-import type { Tenant, Branch, UserRole } from "../types";
+import type { Tenant, Branch, UserRole, PlatformConfig } from "../types";
 import {
   subscribeToTenants,
   subscribeToBranches,
   checkAndSeedInitialTenants,
   getTenantById,
   saveTenant,
+  subscribeToPlatformConfig,
+  savePlatformConfig,
+  getDefaultPlatformConfig,
 } from "../services/firestoreService";
+import {
+  signInWithGoogle as firebaseGoogleSignIn,
+  logoutUser as firebaseLogout,
+  subscribeToAuth,
+  AuthUserProfile,
+} from "../services/authService";
 
-interface CurrentUser {
+export interface CurrentUser {
   id: string;
   name: string;
   email: string;
   role: UserRole;
+  avatarUrl?: string;
 }
+
+export type AppViewMode = "davetech_home" | "login" | "erp" | "website" | "platform";
 
 interface TenantContextType {
   tenants: Tenant[];
@@ -34,10 +46,18 @@ interface TenantContextType {
   setActiveModule: (module: string) => void;
   refreshTenants: () => void;
   loading: boolean;
-  viewMode: "erp" | "website" | "platform";
-  setViewMode: (mode: "erp" | "website" | "platform") => void;
+  viewMode: AppViewMode;
+  setViewMode: (mode: AppViewMode) => void;
+  platformConfig: PlatformConfig;
+  updatePlatformConfig: (config: Partial<PlatformConfig>) => Promise<void>;
   getTenantSubdomainUrl: (tenant?: Tenant | null, mode?: "erp" | "website") => string;
   getTenantShareUrl: (tenant?: Tenant | null, mode?: "erp" | "website") => string;
+  // Authentication properties
+  isAuthenticated: boolean;
+  authUser: AuthUserProfile | null;
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
+  setDirectUserSession: (user: CurrentUser) => void;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -49,15 +69,102 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentBranch, setCurrentBranch] = useState<Branch | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeModule, setActiveModule] = useState<string>("dashboard");
-  const [viewMode, setViewModeState] = useState<"erp" | "website" | "platform">("erp");
+  const [viewMode, setViewModeState] = useState<AppViewMode>("davetech_home");
+  const [platformConfig, setPlatformConfig] = useState<PlatformConfig>(getDefaultPlatformConfig());
 
-  // Current session user (Platform admin default with toggle ability)
-  const [currentUser, setCurrentUser] = useState<CurrentUser>({
-    id: "usr_davetech_admin",
-    name: "David Muchiri (DAVETECH)",
-    email: "davmuchiri48@gmail.com",
-    role: "tenant_admin",
+  // Authentication State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem("davetech_auth_active");
+      return saved === "true";
+    } catch {
+      return false;
+    }
   });
+
+  const [authUser, setAuthUser] = useState<AuthUserProfile | null>(null);
+
+  // Current session user (Platform admin default)
+  const [currentUser, setCurrentUser] = useState<CurrentUser>(() => {
+    try {
+      const savedUser = localStorage.getItem("davetech_auth_user");
+      if (savedUser) {
+        return JSON.parse(savedUser);
+      }
+    } catch {}
+    return {
+      id: "usr_davetech_admin",
+      name: "David Muchiri",
+      email: "davmuchiri48@gmail.com",
+      role: "platform_super_admin",
+    };
+  });
+
+  // Handle Firebase Auth subscription
+  useEffect(() => {
+    const unsub = subscribeToAuth((profile) => {
+      if (profile) {
+        setAuthUser(profile);
+        setIsAuthenticated(true);
+        const newUser: CurrentUser = {
+          id: profile.uid,
+          name: profile.displayName || "David Muchiri",
+          email: profile.email || "davmuchiri48@gmail.com",
+          role: profile.role,
+          avatarUrl: profile.photoURL,
+        };
+        setCurrentUser(newUser);
+        try {
+          localStorage.setItem("davetech_auth_active", "true");
+          localStorage.setItem("davetech_auth_user", JSON.stringify(newUser));
+        } catch {}
+      }
+    });
+
+    return () => unsub();
+  }, []);
+
+  const loginWithGoogle = async () => {
+    const profile = await firebaseGoogleSignIn();
+    setAuthUser(profile);
+    setIsAuthenticated(true);
+    const newUser: CurrentUser = {
+      id: profile.uid,
+      name: profile.displayName || "David Muchiri",
+      email: profile.email || "davmuchiri48@gmail.com",
+      role: profile.role,
+      avatarUrl: profile.photoURL,
+    };
+    setCurrentUser(newUser);
+    try {
+      localStorage.setItem("davetech_auth_active", "true");
+      localStorage.setItem("davetech_auth_user", JSON.stringify(newUser));
+    } catch {}
+  };
+
+  const logout = async () => {
+    try {
+      await firebaseLogout();
+    } catch (err) {
+      console.warn("Sign out err:", err);
+    }
+    setAuthUser(null);
+    setIsAuthenticated(false);
+    setViewModeState("davetech_home");
+    try {
+      localStorage.removeItem("davetech_auth_active");
+      localStorage.removeItem("davetech_auth_user");
+    } catch {}
+  };
+
+  const setDirectUserSession = (user: CurrentUser) => {
+    setCurrentUser(user);
+    setIsAuthenticated(true);
+    try {
+      localStorage.setItem("davetech_auth_active", "true");
+      localStorage.setItem("davetech_auth_user", JSON.stringify(user));
+    } catch {}
+  };
 
   // URL-driven tenant & subdomain routing support
   const getTenantIdentifierFromUrl = (): string | null => {
@@ -126,12 +233,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Sync viewMode to URL query or path
-  const setViewMode = (mode: "erp" | "website" | "platform") => {
+  const setViewMode = (mode: AppViewMode) => {
     setViewModeState(mode);
     try {
       const url = new URL(window.location.href);
       url.searchParams.set("mode", mode);
-      if (currentTenant) {
+      if (currentTenant && mode !== "davetech_home") {
         url.searchParams.set("tenant", currentTenant.id);
         const sub = (currentTenant.subdomain || currentTenant.code || "app").toLowerCase().replace(/[^a-z0-9-]/g, "");
         url.searchParams.set("subdomain", sub);
@@ -142,9 +249,17 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
+  const updatePlatformConfig = async (config: Partial<PlatformConfig>) => {
+    await savePlatformConfig(config, {
+      name: currentUser.name,
+      email: currentUser.email,
+    });
+  };
+
   // Initialize and seed if empty in Firestore
   useEffect(() => {
     let unsubscribeTenants: (() => void) | null = null;
+    let unsubscribePlatform: (() => void) | null = null;
 
     const init = async () => {
       try {
@@ -152,6 +267,12 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } catch (err) {
         console.error("Seed error:", err);
       }
+
+      unsubscribePlatform = subscribeToPlatformConfig((cfg) => {
+        if (cfg) {
+          setPlatformConfig(cfg);
+        }
+      });
 
       unsubscribeTenants = subscribeToTenants((list) => {
         setTenants(list);
@@ -186,13 +307,14 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Check initial mode from URL
     const params = new URLSearchParams(window.location.search);
-    const modeParam = params.get("mode") as "erp" | "website" | "platform";
-    if (modeParam && ["erp", "website", "platform"].includes(modeParam)) {
+    const modeParam = params.get("mode") as AppViewMode;
+    if (modeParam && ["davetech_home", "erp", "website", "platform"].includes(modeParam)) {
       setViewModeState(modeParam);
     }
 
     return () => {
       if (unsubscribeTenants) unsubscribeTenants();
+      if (unsubscribePlatform) unsubscribePlatform();
     };
   }, []);
 
@@ -321,8 +443,15 @@ export const TenantProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         loading,
         viewMode,
         setViewMode,
+        platformConfig,
+        updatePlatformConfig,
         getTenantSubdomainUrl,
         getTenantShareUrl,
+        isAuthenticated,
+        authUser,
+        loginWithGoogle,
+        logout,
+        setDirectUserSession,
       }}
     >
       {children}

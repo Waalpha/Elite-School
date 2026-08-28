@@ -39,6 +39,10 @@ import type {
   TenantWebsiteConfig,
   AuditLog,
   PublicInquiry,
+  PlatformConfig,
+  PlatformFeature,
+  PlatformPlan,
+  PlatformTestimonial,
 } from "../types";
 
 // ==========================================
@@ -1016,27 +1020,12 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
         stream: "East",
         academicYear: "2026",
         termOrSemester: "Term 1",
-        assessmentNumber: "CBA-KNEC-2026-0042",
-        nemisNumber: "NEMIS-2026-894101",
-        upi: "UPI-SA-0042",
-        birthCertificateNo: "BC-789401",
-        bio: "Emmanuel is a curious, proactive Grade 4 learner with strong enthusiasm for Science, Coding, and Mathematics. He actively participates in the Junior Robotics Club and plays forward for the school football team. Aspires to pursue software engineering and aeronautics.",
-        nationality: "Kenyan",
-        religion: "Christian",
-        county: "Nairobi",
-        subCounty: "Westlands",
-        residenceAddress: "Lavington Green, House 14",
         guardianName: "Patrick Mwangi",
         guardianPhone: "+254 720 334 455",
         guardianEmail: "patrick.m@gmail.com",
         guardianRelationship: "Father",
-        guardianOccupation: "Civil Engineer",
-        guardianIdNumber: "23491022",
         emergencyContact: "+254 722 889 900",
-        bloodGroup: "O+",
-        allergies: "Dust & cold weather sensitivity",
         medicalInfo: "Asthma - Inhaler kept with school nurse",
-        talentsAndHobbies: "Robotics, Football, Chess",
         previousSchool: "St. Marys Prep School",
         photoUrl: "https://images.unsplash.com/photo-1543269865-cbf427effbad?w=150&auto=format&fit=crop&q=80",
         status: "active",
@@ -1060,27 +1049,11 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
         stream: "Alpha",
         academicYear: "2026",
         termOrSemester: "Term 1",
-        assessmentNumber: "KPSEA-KNEC-2025-089",
-        nemisNumber: "NEMIS-2026-673102",
-        upi: "UPI-SA-0089",
-        birthCertificateNo: "BC-654321",
-        bio: "Amina is an articulate, top-performing Grade 7 Junior Secondary student with exemplary leadership qualities as Junior Class Representative. She excels in Integrated Science and Creative Arts, and is an active member of the Debate and Drama club.",
-        nationality: "Kenyan",
-        religion: "Islam",
-        county: "Nairobi",
-        subCounty: "Kilimani",
-        residenceAddress: "Riverside Drive, Apt 4B",
         guardianName: "Fatuma Hassan",
         guardianPhone: "+254 733 445 566",
         guardianEmail: "fatuma.h@gmail.com",
         guardianRelationship: "Mother",
-        guardianOccupation: "Architect",
-        guardianIdNumber: "28491033",
         emergencyContact: "+254 733 998 877",
-        bloodGroup: "A+",
-        allergies: "None",
-        medicalInfo: "None reported",
-        talentsAndHobbies: "Debating, Violin, Swimming",
         photoUrl: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=150&auto=format&fit=crop&q=80",
         status: "active",
         totalFeeBilled: 45000,
@@ -1103,12 +1076,6 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
         stream: "Butterflies",
         academicYear: "2026",
         termOrSemester: "Term 1",
-        assessmentNumber: "CBA-PP2-2026-012",
-        nemisNumber: "NEMIS-2026-904103",
-        upi: "UPI-SA-0012",
-        bio: "Liam is an energetic PP2 learner who thrives in hands-on psychomotor activities, music, and numbers. Shows remarkable enthusiasm for group storytelling.",
-        nationality: "Kenyan",
-        county: "Nairobi",
         guardianName: "Everlyn Otieno",
         guardianPhone: "+254 712 556 677",
         guardianEmail: "everlyn.o@yahoo.com",
@@ -1140,12 +1107,6 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
         gradeOrClass: "Diploma in ICT - Year 2",
         academicYear: "2026",
         termOrSemester: "Semester 1",
-        assessmentNumber: "KNEC-TVET-2026-048",
-        nemisNumber: "NEMIS-TVET-04891",
-        upi: "UPI-BITC-048",
-        bio: "David is a dedicated software development student specializing in full-stack web architectures, database management, and mobile engineering.",
-        nationality: "Kenyan",
-        county: "Nyeri",
         guardianName: "Joseph Muchiri",
         guardianPhone: "+254 722 001 122",
         guardianEmail: "davmuchiri48@gmail.com",
@@ -1169,11 +1130,6 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
         gradeOrClass: "Diploma in Business Administration - Year 1",
         academicYear: "2026",
         termOrSemester: "Semester 1",
-        assessmentNumber: "KNEC-TVET-2026-104",
-        nemisNumber: "NEMIS-TVET-10492",
-        upi: "UPI-BITC-104",
-        bio: "Mercy is an aspiring business analyst focusing on financial systems, strategic management, and corporate leadership.",
-        nationality: "Kenyan",
         guardianName: "Hannah Wanjiru",
         guardianPhone: "+254 711 889 900",
         photoUrl: "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=150&auto=format&fit=crop&q=80",
@@ -1399,8 +1355,281 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
     };
     await setDoc(doc(db, "tenants", "st-austin-academy", "website_config", "main"), saWebsite);
 
-    console.log("Flagship tenants and websites successfully initialized into Firestore!");
+    // Also ensure Platform Config document exists for Davetech
+    const platformDocRef = doc(db, "platform_settings", "davetech_main");
+    const platformSnap = await getDoc(platformDocRef);
+    if (!platformSnap.exists()) {
+      const defaultPlatform = getDefaultPlatformConfig();
+      await setDoc(platformDocRef, defaultPlatform);
+    }
+
+    console.log("Flagship tenants, websites, and Davetech platform config initialized into Firestore!");
   } catch (error) {
     console.error("Seeding error:", error);
   }
+}
+
+// ==========================================
+// 14. DAVETECH PLATFORM CONFIG & SETTINGS
+// ==========================================
+
+export function getDefaultPlatformConfig(): PlatformConfig {
+  return {
+    id: "davetech_main",
+    name: "DAVETECH Software & Cloud Solutions",
+    brandName: "DAVETECH",
+    tagline: "Enterprise Multi-Tenant Educational Operating System & Institutional Cloud",
+    logo: "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=200&auto=format&fit=crop&q=80",
+    heroTitle: "Enterprise Technology Built for Scale.",
+    heroHighlight: "School ERP, POS, Web & Custom Cloud.",
+    heroSubtitle: "DAVETECH delivers battle-tested software systems across Kenya and East Africa. Choose from our complete educational ERP platform, fast retail POS system, high-converting corporate websites, or bespoke custom software engineering.",
+    heroBadgeText: "4 Flagship Cloud Packages",
+    heroSlides: [
+      {
+        id: "slide_1",
+        imageUrl: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=1600&auto=format&fit=crop&q=80",
+        title: "Enterprise Software & Cloud Platforms",
+        subtitle: "Multi-tenant scalability for universities, schools, and modern businesses",
+        caption: "Nairobi Engineering & Cloud Center",
+      },
+      {
+        id: "slide_2",
+        imageUrl: "https://images.unsplash.com/photo-1523240795612-9a054b0db644?w=1600&auto=format&fit=crop&q=80",
+        title: "Autonomous School ERP & CBC Systems",
+        subtitle: "Automated report cards, student profiles, and multi-campus synchronization",
+        caption: "Smart Educational Cloud",
+      },
+      {
+        id: "slide_3",
+        imageUrl: "https://images.unsplash.com/photo-1556742049-0a67e55722c3?w=1600&auto=format&fit=crop&q=80",
+        title: "Retail POS & Barcode Inventory",
+        subtitle: "Instant M-Pesa receipting, stock tracking, and multi-branch registers",
+        caption: "Retail POS Terminal",
+      },
+      {
+        id: "slide_4",
+        imageUrl: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1600&auto=format&fit=crop&q=80",
+        title: "High-Converting Business Portals",
+        subtitle: "Lead generation, SEO optimization, and corporate digital presence",
+        caption: "Custom Web Solutions",
+      },
+    ],
+    heroVisualSettings: {
+      fontAlignment: "center",
+      fontFamily: "sans",
+      fontSize: "large",
+      fontStyle: "bold",
+      photoTransparency: 85, // 85% opacity of image
+      overlayOpacity: 75, // 75% dark tint overlay
+      overlayColor: "#020617",
+      imageBlur: 0,
+      imageBrightness: 100,
+      imageFit: "cover",
+      autoSlide: true,
+      slideInterval: 6,
+      activeSlideIndex: 0,
+    },
+    announcementBanner: "🚀 Davetech Cloud v4.2 Release: Live Automated CBC Assessments, Real-Time Fee Gateways & Multi-Campus Syncing Now Live!",
+    supportEmail: "contact@davetech.co.ke",
+    supportPhone: "+254 700 000 123",
+    whatsappPhone: "+254 700 000 123",
+    address: "Davetech Innovation Tower, Upper Hill, Nairobi, Kenya",
+    websiteUrl: "https://davetecherp.com",
+    primaryColor: "#4f46e5", // Indigo
+    accentColor: "#06b6d4", // Cyan
+    enablePublicRegistrations: true,
+    enableMultiCampus: true,
+    stats: {
+      institutionsCount: 45,
+      studentsCount: 128500,
+      uptime: "99.98%",
+      countries: 6,
+    },
+    features: [
+      {
+        id: "feat_multitenant",
+        title: "Multi-Tenant Architecture & Subdomains",
+        description: "Zero data crossover with isolated Firestore documents, custom domains, and dedicated subdomains per school.",
+        iconName: "Layers",
+        category: "Cloud Infrastructure",
+      },
+      {
+        id: "feat_cbc_academic",
+        title: "CBC, 8-4-4 & TVET Grading Engines",
+        description: "Built-in assessment rubrics (Exceeding, Meeting, Approaching, Below Expectation), modular transcripts, and automated student report cards.",
+        iconName: "GraduationCap",
+        category: "Academic Engine",
+      },
+      {
+        id: "feat_finance",
+        title: "Fee Accounting & Automatic Receipts",
+        description: "Itemized vote-heads, automated invoicing, real-time payment reconciliation, PDF fee receipts, and parent statement portals.",
+        iconName: "CreditCard",
+        category: "Financial Management",
+      },
+      {
+        id: "feat_website_cms",
+        title: "Instant Branded Public Website & CMS",
+        description: "Every institution receives a high-speed, mobile-responsive public website, carousel builder, and admissions inquiry portal.",
+        iconName: "Globe",
+        category: "Digital Presence",
+      },
+      {
+        id: "feat_attendance_qr",
+        title: "Smart Attendance & QR Verification",
+        description: "Daily roll-call with period logs, parent SMS notification triggers, and printable QR-code student ID card verification.",
+        iconName: "QrCode",
+        category: "Security & Ops",
+      },
+      {
+        id: "feat_multicampus",
+        title: "Multi-Campus & Branch Synchronization",
+        description: "Manage multiple constituent campuses, satellites, and annexes from one centralized executive dashboard.",
+        iconName: "Network",
+        category: "Enterprise Scale",
+      },
+    ],
+    plans: [
+      {
+        id: "plan_starter",
+        name: "Standard School Edition",
+        price: 15000,
+        currency: "KES",
+        billingCycle: "termly",
+        tagline: "Ideal for pre-primary & single-stream primary academies.",
+        maxStudents: 300,
+        maxBranches: 1,
+        features: [
+          "CBC Assessment & Report Cards",
+          "Student & Parent Directory",
+          "Fee Invoicing & Receipts",
+          "Basic Public School Website",
+          "Single Campus Branch",
+          "Standard Email Support",
+        ],
+      },
+      {
+        id: "plan_professional",
+        name: "Professional Institution",
+        price: 35000,
+        currency: "KES",
+        billingCycle: "termly",
+        tagline: "For comprehensive primary, junior & senior secondary institutions.",
+        badge: "Most Popular",
+        isPopular: true,
+        maxStudents: 1200,
+        maxBranches: 2,
+        features: [
+          "All Standard School Features",
+          "Junior School Pre-Technical Tracking",
+          "Multi-Stream CBC Gradebooks",
+          "Custom Subdomain & DNS",
+          "Timetable & Exam Scheduling",
+          "QR Code Student ID Badges",
+          "Role-Based Access (Teachers & Parents)",
+          "Priority 24/7 Phone Support",
+        ],
+      },
+      {
+        id: "plan_enterprise",
+        name: "Enterprise Multi-Campus Cloud",
+        price: 75000,
+        currency: "KES",
+        billingCycle: "termly",
+        tagline: "For TVET colleges, universities, and multi-campus school groups.",
+        badge: "Full Power",
+        maxStudents: 10000,
+        maxBranches: 10,
+        features: [
+          "Unlimited Multi-Campus & Branches",
+          "TVET Modular & Semester Grading",
+          "Custom Domain (e.g. portal.school.edu)",
+          "Interactive Website CMS & Admissions",
+          "Audit Trail Logs & Role Simulator",
+          "Dedicated Cloud Infrastructure",
+          "Custom Branding & White-Labeling",
+          "Dedicated Account Engineer",
+        ],
+      },
+    ],
+    testimonials: [
+      {
+        id: "pt1",
+        name: "Eng. Geoffrey Mwangi",
+        institution: "Breakthrough International Training College",
+        role: "Director of Academic Affairs",
+        quote: "Davetech transformed our TVET administration. Course registration, semester transcripts, and multi-campus billing are now unified in one lightning-fast cloud.",
+        rating: 5,
+        avatarUrl: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=120&auto=format&fit=crop&q=80",
+      },
+      {
+        id: "pt2",
+        name: "Sister Margaret Wambui",
+        institution: "St. Austin Pre-Primary & Junior Secondary",
+        role: "Head of School",
+        quote: "The CBC assessment rubrics and instant parent report cards have saved our teachers hundreds of hours each term. Davetech is indispensable.",
+        rating: 5,
+        avatarUrl: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=120&auto=format&fit=crop&q=80",
+      },
+    ],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function getPlatformConfig(): Promise<PlatformConfig> {
+  try {
+    const docRef = doc(db, "platform_settings", "davetech_main");
+    const snap = await getDoc(docRef);
+    if (snap.exists()) {
+      return snap.data() as PlatformConfig;
+    }
+    const def = getDefaultPlatformConfig();
+    await setDoc(docRef, def);
+    return def;
+  } catch (error) {
+    console.error("getPlatformConfig error:", error);
+    return getDefaultPlatformConfig();
+  }
+}
+
+export async function savePlatformConfig(
+  config: Partial<PlatformConfig>,
+  author?: { name: string; email?: string }
+): Promise<void> {
+  const docRef = doc(db, "platform_settings", "davetech_main");
+  const snap = await getDoc(docRef);
+  const current = snap.exists() ? snap.data() : getDefaultPlatformConfig();
+  const updated = {
+    ...current,
+    ...config,
+    updatedAt: new Date().toISOString(),
+  };
+  await setDoc(docRef, updated, { merge: true });
+
+  await logAuditEvent({
+    action: "UPDATE",
+    module: "PLATFORM_SETTINGS",
+    recordId: "davetech_main",
+    userName: author?.name || "Platform Super Admin",
+    userEmail: author?.email || "davmuchiri48@gmail.com",
+    details: "Updated Davetech platform configuration and branding settings.",
+  });
+}
+
+export function subscribeToPlatformConfig(
+  callback: (config: PlatformConfig) => void
+): Unsubscribe {
+  const docRef = doc(db, "platform_settings", "davetech_main");
+  return onSnapshot(docRef, (snap) => {
+    if (snap.exists()) {
+      callback(snap.data() as PlatformConfig);
+    } else {
+      callback(getDefaultPlatformConfig());
+    }
+  });
+}
+
+export async function savePublicInquiry(inquiry: PublicInquiry): Promise<void> {
+  const colRef = collection(db, "public_inquiries");
+  await setDoc(doc(colRef, inquiry.id), inquiry);
 }

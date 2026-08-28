@@ -98,46 +98,14 @@ export interface Student {
   stream?: string; // e.g. "East", "West", "Alpha", "Blue"
   academicYear: string;
   termOrSemester: string;
-  
-  // National & Examination Identifiers
-  assessmentNumber?: string; // KNEC Assessment / CBA / Index Number
-  nemisNumber?: string; // NEMIS / National Education Management Information System Number
-  upi?: string; // Unique Personal Identifier (Ministry of Education)
-  birthCertificateNo?: string;
-
-  // Complete Student Biography & Demographics
-  bio?: string; // Detailed bio, personal aspirations, strengths, character notes
-  nationality?: string;
-  religion?: string;
-  county?: string;
-  subCounty?: string;
-  residenceAddress?: string;
-
-  // Guardian & Family Contact Details
   guardianName: string;
   guardianPhone: string;
   guardianEmail?: string;
   guardianRelationship?: string;
-  guardianOccupation?: string;
-  guardianIdNumber?: string;
-  guardianAltPhone?: string;
   emergencyContact?: string;
-
-  // Medical & Special Educational Needs
-  bloodGroup?: string;
   medicalInfo?: string;
-  allergies?: string;
-  dietaryRequirements?: string;
-  specialNeeds?: string;
-
-  // Extracurricular & Interests
-  talentsAndHobbies?: string;
-  clubMemberships?: string[];
   previousSchool?: string;
-  enrollmentDate?: string;
   photoUrl?: string;
-
-  // Financial & Enrollment Status
   status: 'active' | 'graduated' | 'transferred' | 'suspended' | 'alumni';
   totalFeeBilled: number;
   totalFeePaid: number;
@@ -519,4 +487,143 @@ export interface PublicInquiry {
   message: string;
   status: 'new' | 'reviewed' | 'contacted';
   createdAt: string;
+}
+
+export interface PlatformFeature {
+  id: string;
+  title: string;
+  description: string;
+  iconName: string;
+  category: string;
+}
+
+export interface PlatformPlan {
+  id: string;
+  name: string;
+  price: number;
+  currency: string;
+  billingCycle: 'monthly' | 'termly' | 'yearly';
+  tagline: string;
+  badge?: string;
+  maxStudents: number;
+  maxBranches: number;
+  features: string[];
+  isPopular?: boolean;
+}
+
+export interface PlatformTestimonial {
+  id: string;
+  name: string;
+  institution: string;
+  role: string;
+  quote: string;
+  rating: number;
+  avatarUrl?: string;
+}
+
+export type SoftwarePackageId =
+  | 'school_erp'
+  | 'pos_system'
+  | 'business_website'
+  | 'custom_software';
+
+export interface SoftwarePackageInfo {
+  id: SoftwarePackageId;
+  name: string;
+  tagline: string;
+  description: string;
+  badge: string;
+  accentColor: string;
+  heroImage: string;
+  features: {
+    title: string;
+    description: string;
+    icon: string;
+  }[];
+  highlightMetrics: { label: string; value: string }[];
+  pricingStarting: string;
+  targetAudience: string[];
+  capabilities: string[];
+}
+
+export interface PosDemoProduct {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  barcode: string;
+  stock: number;
+  taxRate: number;
+  image: string;
+}
+
+export interface SoftwareEstimateData {
+  projectType: string;
+  targetPlatforms: string[];
+  selectedFeatures: string[];
+  userScale: string;
+  timelineSpeed: string;
+  estimatedCostMin: number;
+  estimatedCostMax: number;
+  currency: string;
+  estimatedWeeks: number;
+}
+
+
+export interface HeroSlide {
+  id: string;
+  imageUrl: string;
+  title?: string;
+  subtitle?: string;
+  caption?: string;
+}
+
+export interface HeroVisualSettings {
+  fontAlignment: "left" | "center" | "right";
+  fontFamily: "sans" | "serif" | "mono" | "display" | "tech";
+  fontSize: "compact" | "standard" | "large" | "huge";
+  fontStyle: "normal" | "italic" | "bold" | "extra-bold";
+  photoTransparency: number; // 0 - 100% (100 is fully visible, 0 is transparent)
+  overlayOpacity: number; // 0 - 100% (dark overlay tint over image)
+  overlayColor: string; // e.g. '#020617'
+  imageBlur: number; // 0 - 10px
+  imageBrightness: number; // 50 - 150%
+  imageFit: "cover" | "contain" | "center";
+  autoSlide?: boolean;
+  slideInterval?: number; // in seconds
+  activeSlideIndex?: number;
+}
+
+export interface PlatformConfig {
+  id: string; // 'davetech_main'
+  name: string; // "Davetech Multi-Tenant Cloud"
+  brandName: string; // "DAVETECH"
+  tagline: string; // "Enterprise Multi-Tenant Educational Operating System & School ERP"
+  logo: string; // Platform logo image URL or base64
+  heroTitle: string;
+  heroHighlight?: string;
+  heroSubtitle: string;
+  heroBadgeText?: string;
+  heroSlides?: HeroSlide[];
+  heroVisualSettings?: HeroVisualSettings;
+  announcementBanner?: string;
+  supportEmail: string;
+  supportPhone: string;
+  whatsappPhone?: string;
+  address: string;
+  websiteUrl: string;
+  primaryColor: string;
+  accentColor: string;
+  enablePublicRegistrations: boolean;
+  enableMultiCampus: boolean;
+  stats: {
+    institutionsCount: number;
+    studentsCount: number;
+    uptime: string;
+    countries: number;
+  };
+  features: PlatformFeature[];
+  plans: PlatformPlan[];
+  testimonials: PlatformTestimonial[];
+  updatedAt: string;
 }

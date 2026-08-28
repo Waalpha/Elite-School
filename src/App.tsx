@@ -17,25 +17,59 @@ import { BranchManager } from "./components/branches/BranchManager";
 import { AuditLogsManager } from "./components/audit/AuditLogsManager";
 import { SettingsManager } from "./components/settings/SettingsManager";
 import { PlatformAdminView } from "./components/platform/PlatformAdminView";
+import { PublicCompanyWebsite } from "./components/public/PublicCompanyWebsite";
 import { NewTenantModal } from "./components/tenants/NewTenantModal";
+import { DavetechLoginScreen } from "./components/auth/DavetechLoginScreen";
 
 const AppContent: React.FC = () => {
-  const { currentTenant, viewMode, setViewMode, isLoading } = useTenant();
+  const { viewMode, setViewMode, loading, isAuthenticated } = useTenant();
   const [activeTab, setActiveTab] = useState<string>("dashboard");
   const [newTenantModalOpen, setNewTenantModalOpen] = useState(false);
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white space-y-4">
         <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
         <div className="text-sm font-semibold tracking-wide text-slate-300">
-          Connecting to DAVETECH Firestore Multi-Tenant Cloud...
+          Connecting to DAVETECH Multi-Tenant Cloud...
         </div>
       </div>
     );
   }
 
-  // 1. PUBLIC WEBSITE PREVIEW MODE
+  // 1. FIRST PAGE: MAIN DAVETECH PUBLIC SOLUTIONS WEBSITE
+  if (viewMode === "davetech_home") {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col font-sans">
+        <main className="flex-1">
+          <PublicCompanyWebsite
+            onOpenNewTenantModal={() => {
+              if (!isAuthenticated) {
+                setViewMode("login");
+              } else {
+                setNewTenantModalOpen(true);
+              }
+            }}
+          />
+        </main>
+        <NewTenantModal
+          isOpen={newTenantModalOpen}
+          onClose={() => setNewTenantModalOpen(false)}
+        />
+      </div>
+    );
+  }
+
+  // 2. SECOND PAGE: AUTHENTICATION GATEWAY & GOOGLE LOGIN SCREEN
+  if (viewMode === "login" || (!isAuthenticated && (viewMode === "erp" || viewMode === "platform"))) {
+    return (
+      <DavetechLoginScreen
+        onBackToPublicWebsite={() => setViewMode("davetech_home")}
+      />
+    );
+  }
+
+  // 3. PUBLIC TENANT SCHOOL WEBSITE PREVIEW MODE
   if (viewMode === "website") {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col font-sans">
@@ -51,7 +85,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 2. PLATFORM SUPER ADMIN PORTAL MODE
+  // 4. THIRD PAGE: BACKEND - PLATFORM SUPER ADMIN PORTAL MODE
   if (viewMode === "platform") {
     return (
       <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
@@ -67,7 +101,7 @@ const AppContent: React.FC = () => {
     );
   }
 
-  // 3. MAIN TENANT ERP WORKSPACE
+  // 5. THIRD PAGE: BACKEND - MAIN TENANT ERP WORKSPACE
   return (
     <div className="min-h-screen bg-slate-100 flex flex-col font-sans">
       <Header onOpenNewTenantModal={() => setNewTenantModalOpen(true)} />
