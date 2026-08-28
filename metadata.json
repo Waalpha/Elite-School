@@ -1,0 +1,6 @@
+{
+  "name": "DAVETECH Multi-Tenant ERP Platform",
+  "description": "Production-ready multi-tenant ERP platform supporting educational institutions (Pre-Primary, Primary Grade 1-6, Junior School Grade 7-9, TVET, College, University) and businesses with dedicated tenant websites, role-based access, financial accounting, and Firebase persistence.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

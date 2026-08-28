@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "tenants": {
+      "title": "Tenant Organizations",
+      "description": "Top-level tenant records for each school, college, university, business, or church using DAVETECH ERP.",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string" },
+        "code": { "type": "string" },
+        "logo": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "address": { "type": "string" },
+        "website": { "type": "string" },
+        "country": { "type": "string" },
+        "status": { "type": "string" },
+        "subscriptionPlan": { "type": "string" },
+        "enabledModules": { "type": "array" },
+        "currency": { "type": "string" },
+        "primaryColor": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "createdBy": { "type": "string" }
+      }
+    },
+    "tenant_users": {
+      "title": "Tenant Users and Staff Roles",
+      "description": "User accounts belonging to a specific tenant with role-based access permissions.",
+      "fields": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "branchId": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string" },
+        "permissions": { "type": "object" },
+        "status": { "type": "string" },
+        "phone": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "tenant_students": {
+      "title": "Tenant Students (Pre-Primary, Primary Grade 1-6, Junior School Grade 7-9, TVET, College)",
+      "description": "Student admission records, profiles, guardians, CBC competencies, and fee summaries.",
+      "fields": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "branchId": { "type": "string" },
+        "admissionNo": { "type": "string" },
+        "firstName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "educationLevel": { "type": "string" },
+        "gradeOrClass": { "type": "string" },
+        "stream": { "type": "string" },
+        "academicYear": { "type": "string" },
+        "termOrSemester": { "type": "string" },
+        "guardianName": { "type": "string" },
+        "guardianPhone": { "type": "string" },
+        "guardianEmail": { "type": "string" },
+        "status": { "type": "string" },
+        "balance": { "type": "number" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "tenant_finance": {
+      "title": "Invoices and Payments",
+      "description": "Tenant-specific invoices, fee structures, receipts, and payment transactions.",
+      "fields": {
+        "id": { "type": "string" },
+        "tenantId": { "type": "string" },
+        "branchId": { "type": "string" },
+        "studentId": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "receiptNumber": { "type": "string" },
+        "createdAt": { "type": "string" }
+      }
+    },
+    "tenant_website": {
+      "title": "Tenant Public Website CMS Config",
+      "description": "Independent CMS configuration, hero sliders, about, programs, gallery, and branding per tenant.",
+      "fields": {
+        "tenantId": { "type": "string" },
+        "title": { "type": "string" },
+        "logoUrl": { "type": "string" },
+        "heroSlides": { "type": "array" },
+        "about": { "type": "object" },
+        "programs": { "type": "array" },
+        "gallery": { "type": "array" },
+        "newsEvents": { "type": "array" },
+        "contactDetails": { "type": "object" },
+        "isPublished": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      }
+    }
+  }
+}
