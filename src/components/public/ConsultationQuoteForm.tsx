@@ -119,10 +119,10 @@ export const ConsultationQuoteForm: React.FC = () => {
                 <div>
                   <div className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Direct Email Inquiries</div>
                   <a
-                    href={`mailto:${platformConfig.supportEmail || "davmuchiri48@gmail.com"}`}
+                    href={`mailto:${platformConfig.supportEmail || "contact@davetech.co.ke"}`}
                     className="text-sm font-bold text-white hover:text-indigo-400 font-mono transition-colors"
                   >
-                    {platformConfig.supportEmail || "davmuchiri48@gmail.com"}
+                    {platformConfig.supportEmail || "contact@davetech.co.ke"}
                   </a>
                 </div>
               </div>

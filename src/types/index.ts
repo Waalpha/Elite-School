@@ -80,7 +80,12 @@ export interface TenantUser {
   phone?: string;
   avatarUrl?: string;
   status: 'active' | 'inactive';
+  password?: string;
+  tempPassword?: string;
+  lastPasswordReset?: string;
+  notes?: string;
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Student {
@@ -370,9 +375,10 @@ export interface Certificate {
 
 export interface HeroSlide {
   id: string;
-  title: string;
-  subtitle: string;
   imageUrl: string;
+  title?: string;
+  subtitle?: string;
+  caption?: string;
   buttonText?: string;
   buttonLink?: string;
 }
@@ -569,14 +575,6 @@ export interface SoftwareEstimateData {
   estimatedWeeks: number;
 }
 
-
-export interface HeroSlide {
-  id: string;
-  imageUrl: string;
-  title?: string;
-  subtitle?: string;
-  caption?: string;
-}
 
 export interface HeroVisualSettings {
   fontAlignment: "left" | "center" | "right";

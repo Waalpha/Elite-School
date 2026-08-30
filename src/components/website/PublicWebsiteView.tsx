@@ -28,7 +28,11 @@ import {
   ShieldCheck,
 } from "lucide-react";
 
-export const PublicWebsiteView: React.FC = () => {
+interface PublicWebsiteViewProps {
+  onBackToERP?: () => void;
+}
+
+export const PublicWebsiteView: React.FC<PublicWebsiteViewProps> = ({ onBackToERP }) => {
   const { currentTenant, setViewMode, currentBranch } = useTenant();
 
   const [config, setConfig] = useState<TenantWebsiteConfig | null>(null);
@@ -212,8 +216,18 @@ export const PublicWebsiteView: React.FC = () => {
           <div className="flex items-center gap-3">
             <button
               type="button"
+              onClick={() => setViewMode("erp")}
+              className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm border border-slate-300 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+            >
+              <Lock className="w-3.5 h-3.5 text-indigo-600" />
+              <span className="hidden sm:inline">Staff / Student Portal</span>
+              <span className="sm:hidden">Portal</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setIsApplyModalOpen(true)}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-1.5"
+              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all flex items-center gap-1.5 cursor-pointer"
             >
               <span>Apply Online</span>
               <ArrowRight className="w-4 h-4" />

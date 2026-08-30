@@ -62,7 +62,7 @@ export const NewTenantModal: React.FC<NewTenantModalProps> = ({ isOpen, onClose 
       name: formData.name,
       code: formData.code.toUpperCase(),
       subdomain: baseSubdomain,
-      customDomain: formData.customDomain ? formData.customDomain.trim().toLowerCase() : undefined,
+      ...(formData.customDomain?.trim() ? { customDomain: formData.customDomain.trim().toLowerCase() } : {}),
       type: formData.type,
       logo: formData.type === "school_primary"
         ? "https://images.unsplash.com/photo-1546410531-bb4caa6b424d?w=200"

@@ -46,6 +46,35 @@ import type {
 } from "../types";
 
 // ==========================================
+// 0. FIRESTORE SANITIZATION HELPER
+// ==========================================
+
+/**
+ * Recursively strips any keys with `undefined` values to prevent Firestore from throwing:
+ * "Function setDoc() called with invalid data. Unsupported field value: undefined"
+ */
+export function cleanForFirestore<T>(data: T): T {
+  if (data === null || data === undefined) {
+    return data;
+  }
+  if (Array.isArray(data)) {
+    return data
+      .filter((item) => item !== undefined)
+      .map((item) => cleanForFirestore(item)) as unknown as T;
+  }
+  if (typeof data === "object" && !(data instanceof Date)) {
+    const cleaned: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      if (value !== undefined) {
+        cleaned[key] = cleanForFirestore(value);
+      }
+    }
+    return cleaned;
+  }
+  return data;
+}
+
+// ==========================================
 // 1. TENANT MANAGEMENT
 // ==========================================
 
@@ -77,12 +106,12 @@ export async function getTenantById(tenantId: string): Promise<Tenant | null> {
   return { id: snap.id, ...snap.data() } as Tenant;
 }
 
-export async function saveTenant(tenant: Tenant, userDetails?: { name: string; email: string }): Promise<void> {
+export async function saveTenant(tenant: Tenant, userDetails?: { name: string; email?: string }): Promise<void> {
   const docRef = doc(db, "tenants", tenant.id);
-  const payload = {
+  const payload = cleanForFirestore({
     ...tenant,
     updatedAt: new Date().toISOString(),
-  };
+  });
   await setDoc(docRef, payload, { merge: true });
 
   await logAuditEvent({
@@ -96,17 +125,209 @@ export async function saveTenant(tenant: Tenant, userDetails?: { name: string; e
   });
 }
 
-export async function deleteTenant(tenantId: string, userDetails?: { name: string }): Promise<void> {
+export async function deleteTenant(tenantId: string, userDetails?: { name: string; email?: string }): Promise<void> {
+  if (!tenantId) return;
+
+  // Subcollections to clean up
+  const subcollections = [
+    "users",
+    "branches",
+    "students",
+    "staff",
+    "classes",
+    "courses",
+    "academic_years",
+    "subjects",
+    "website_config",
+    "fee_structures",
+    "invoices",
+    "payments",
+    "assessments",
+    "daily_attendance",
+    "timetables",
+    "certificates",
+    "audit_logs",
+  ];
+
+  // 1. Delete documents in subcollections
+  await Promise.allSettled(
+    subcollections.map(async (subName) => {
+      try {
+        const colRef = collection(db, "tenants", tenantId, subName);
+        const snap = await getDocs(colRef);
+        const deletePromises = snap.docs.map((d) => deleteDoc(d.ref));
+        await Promise.allSettled(deletePromises);
+      } catch (err) {
+        console.warn(`Error clearing subcollection ${subName} for tenant ${tenantId}:`, err);
+      }
+    })
+  );
+
+  // 2. Delete root tenant document
   const docRef = doc(db, "tenants", tenantId);
   await deleteDoc(docRef);
+
+  // 3. Log audit event
+  try {
+    await logAuditEvent({
+      tenantId,
+      userName: userDetails?.name || "System Admin",
+      userEmail: userDetails?.email,
+      action: "DELETED_TENANT",
+      module: "PLATFORM_ADMIN",
+      recordId: tenantId,
+      details: `Permanently deleted tenant institution ${tenantId} and all associated records.`,
+    });
+  } catch (auditErr) {
+    console.warn("Audit logging after deletion note:", auditErr);
+  }
+}
+
+export async function toggleTenantStatus(
+  tenantId: string,
+  newStatus: "active" | "suspended" | "pending",
+  userDetails?: { name: string; email?: string }
+): Promise<void> {
+  const docRef = doc(db, "tenants", tenantId);
+  await updateDoc(docRef, cleanForFirestore({
+    status: newStatus,
+    updatedAt: new Date().toISOString(),
+  }));
+
   await logAuditEvent({
     tenantId,
-    userName: userDetails?.name || "System Admin",
-    action: "DELETED_TENANT",
+    userName: userDetails?.name || "Platform Super Admin",
+    userEmail: userDetails?.email,
+    action: newStatus === "suspended" ? "SUSPENDED_TENANT" : "ACTIVATED_TENANT",
     module: "PLATFORM_ADMIN",
     recordId: tenantId,
-    details: `Deleted tenant ${tenantId}`,
+    details: `Changed tenancy status of ${tenantId} to ${newStatus.toUpperCase()}`,
   });
+}
+
+// ==========================================
+// 1.1 TENANT USERS & PASSWORD CREDENTIALS
+// ==========================================
+
+export function subscribeToTenantUsers(
+  tenantId: string,
+  callback: (users: TenantUser[]) => void
+): Unsubscribe {
+  if (!tenantId) return () => {};
+  const colRef = collection(db, "tenants", tenantId, "users");
+  return onSnapshot(
+    colRef,
+    (snap) => {
+      const list = snap.docs.map((d) => ({ id: d.id, ...d.data() } as TenantUser));
+      callback(list);
+    },
+    (err) => console.warn("Tenant users sub error:", err)
+  );
+}
+
+export async function getTenantUsers(tenantId: string): Promise<TenantUser[]> {
+  if (!tenantId) return [];
+  const colRef = collection(db, "tenants", tenantId, "users");
+  const snap = await getDocs(colRef);
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as TenantUser));
+}
+
+export async function saveTenantUser(
+  tenantId: string,
+  user: TenantUser,
+  userDetails?: { name: string; email?: string }
+): Promise<void> {
+  const docRef = doc(db, "tenants", tenantId, "users", user.id);
+  const payload: TenantUser = cleanForFirestore({
+    ...user,
+    tenantId,
+    updatedAt: new Date().toISOString(),
+  });
+  await setDoc(docRef, payload, { merge: true });
+
+  await logAuditEvent({
+    tenantId,
+    userName: userDetails?.name || "Admin",
+    userEmail: userDetails?.email,
+    action: "SAVED_TENANT_USER",
+    module: "ACCESS_CONTROL",
+    recordId: user.id,
+    details: `Updated user account & permissions for ${user.displayName} (${user.email}) with role ${user.role}`,
+  });
+}
+
+export async function deleteTenantUser(
+  tenantId: string,
+  userId: string,
+  userDetails?: { name: string; email?: string }
+): Promise<void> {
+  const docRef = doc(db, "tenants", tenantId, "users", userId);
+  await deleteDoc(docRef);
+
+  await logAuditEvent({
+    tenantId,
+    userName: userDetails?.name || "Admin",
+    userEmail: userDetails?.email,
+    action: "DELETED_TENANT_USER",
+    module: "ACCESS_CONTROL",
+    recordId: userId,
+    details: `Deleted user credentials account ${userId}`,
+  });
+}
+
+export async function resetTenantUserPassword(
+  tenantId: string,
+  userId: string,
+  newPassword: string,
+  userDetails?: { name: string; email?: string }
+): Promise<void> {
+  const docRef = doc(db, "tenants", tenantId, "users", userId);
+  await updateDoc(docRef, cleanForFirestore({
+    password: newPassword,
+    tempPassword: newPassword,
+    lastPasswordReset: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }));
+
+  await logAuditEvent({
+    tenantId,
+    userName: userDetails?.name || "Super Admin",
+    userEmail: userDetails?.email,
+    action: "RESET_TENANT_PASSWORD",
+    module: "AUTHENTICATION_SECURITY",
+    recordId: userId,
+    details: `Reset security password/PIN for user account ID ${userId}`,
+  });
+}
+
+export async function findTenantUserByEmail(
+  email: string,
+  targetTenantId?: string
+): Promise<{ user: TenantUser; tenant: Tenant } | null> {
+  const cleanEmail = (email || "").toLowerCase().trim();
+  if (!cleanEmail) return null;
+
+  try {
+    const allTenants = await getTenants();
+    const filteredTenants = targetTenantId
+      ? allTenants.filter((t) => t.id === targetTenantId)
+      : allTenants;
+
+    for (const t of filteredTenants) {
+      const users = await getTenantUsers(t.id);
+      const matched = users.find(
+        (u) =>
+          u.email.toLowerCase().trim() === cleanEmail ||
+          u.id.toLowerCase().trim() === cleanEmail
+      );
+      if (matched) {
+        return { user: matched, tenant: t };
+      }
+    }
+  } catch (err) {
+    console.error("findTenantUserByEmail error:", err);
+  }
+  return null;
 }
 
 // ==========================================
@@ -128,7 +349,7 @@ export function subscribeToBranches(tenantId: string, callback: (branches: Branc
 
 export async function saveBranch(tenantId: string, branch: Branch, userDetails?: { name: string }): Promise<void> {
   const docRef = doc(db, "tenants", tenantId, "branches", branch.id);
-  await setDoc(docRef, branch, { merge: true });
+  await setDoc(docRef, cleanForFirestore(branch), { merge: true });
 
   await logAuditEvent({
     tenantId,
@@ -166,11 +387,11 @@ export function subscribeToStudents(
 
 export async function saveStudent(tenantId: string, student: Student, userDetails?: { name: string }): Promise<void> {
   const docRef = doc(db, "tenants", tenantId, "students", student.id);
-  const data = {
+  const data = cleanForFirestore({
     ...student,
     tenantId,
     updatedAt: new Date().toISOString(),
-  };
+  });
   await setDoc(docRef, data, { merge: true });
 
   await logAuditEvent({
@@ -215,7 +436,7 @@ export function subscribeToStaff(tenantId: string, callback: (staff: Staff[]) =>
 
 export async function saveStaff(tenantId: string, staff: Staff, userDetails?: { name: string }): Promise<void> {
   const docRef = doc(db, "tenants", tenantId, "staff", staff.id);
-  await setDoc(docRef, { ...staff, tenantId, updatedAt: new Date().toISOString() }, { merge: true });
+  await setDoc(docRef, cleanForFirestore({ ...staff, tenantId, updatedAt: new Date().toISOString() }), { merge: true });
 }
 
 export async function deleteStaff(tenantId: string, staffId: string, userDetails?: { name: string }): Promise<void> {
@@ -250,7 +471,7 @@ export function subscribeToClasses(tenantId: string, callback: (classes: Academi
 
 export async function saveClass(tenantId: string, academicClass: AcademicClass): Promise<void> {
   const docRef = doc(db, "tenants", tenantId, "classes", academicClass.id);
-  await setDoc(docRef, { ...academicClass, tenantId }, { merge: true });
+  await setDoc(docRef, cleanForFirestore({ ...academicClass, tenantId }), { merge: true });
 }
 
 export async function deleteClass(tenantId: string, classId: string): Promise<void> {
@@ -270,7 +491,7 @@ export function subscribeToSubjects(tenantId: string, callback: (subjects: Subje
 }
 
 export async function saveSubject(tenantId: string, subject: Subject): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "subjects", subject.id), { ...subject, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "subjects", subject.id), cleanForFirestore({ ...subject, tenantId }), { merge: true });
 }
 
 export async function deleteSubject(tenantId: string, subjectId: string): Promise<void> {
@@ -290,7 +511,7 @@ export function subscribeToCourses(tenantId: string, callback: (courses: Course[
 }
 
 export async function saveCourse(tenantId: string, course: Course): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "courses", course.id), { ...course, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "courses", course.id), cleanForFirestore({ ...course, tenantId }), { merge: true });
 }
 
 export async function deleteCourse(tenantId: string, courseId: string): Promise<void> {
@@ -310,7 +531,7 @@ export function subscribeToAcademicYears(tenantId: string, callback: (years: Aca
 }
 
 export async function saveAcademicYear(tenantId: string, year: AcademicYear): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "academic_years", year.id), { ...year, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "academic_years", year.id), cleanForFirestore({ ...year, tenantId }), { merge: true });
 }
 
 // ==========================================
@@ -330,7 +551,7 @@ export function subscribeToFeeStructures(tenantId: string, callback: (fees: FeeS
 }
 
 export async function saveFeeStructure(tenantId: string, fee: FeeStructure, userDetails?: { name: string }): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "fee_structures", fee.id), { ...fee, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "fee_structures", fee.id), cleanForFirestore({ ...fee, tenantId }), { merge: true });
   if (userDetails) {
     await logAuditEvent({
       tenantId,
@@ -368,7 +589,7 @@ export function subscribeToInvoices(tenantId: string, callback: (invoices: Invoi
 }
 
 export async function saveInvoice(tenantId: string, invoice: Invoice, userDetails?: { name: string }): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "invoices", invoice.id), { ...invoice, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "invoices", invoice.id), cleanForFirestore({ ...invoice, tenantId }), { merge: true });
   await logAuditEvent({
     tenantId,
     userName: userDetails?.name || "Accountant",
@@ -400,28 +621,28 @@ export async function recordPayment(
 ): Promise<void> {
   // 1. Save payment record
   const payRef = doc(db, "tenants", tenantId, "payments", payment.id);
-  await setDoc(payRef, { ...payment, tenantId }, { merge: true });
+  await setDoc(payRef, cleanForFirestore({ ...payment, tenantId }), { merge: true });
 
   // 2. Update Student Fee Balances
   const newPaid = (student.totalFeePaid || 0) + payment.amount;
   const newBalance = Math.max(0, (student.totalFeeBilled || 0) - newPaid);
   const studentRef = doc(db, "tenants", tenantId, "students", student.id);
-  await updateDoc(studentRef, {
+  await updateDoc(studentRef, cleanForFirestore({
     totalFeePaid: newPaid,
     balance: newBalance,
     updatedAt: new Date().toISOString(),
-  });
+  }));
 
   // 3. Update Invoice if linked
   if (invoice) {
     const invPaid = (invoice.paidAmount || 0) + payment.amount;
     const invBal = Math.max(0, invoice.amount - invPaid);
     const invStatus = invBal === 0 ? "paid" : invPaid > 0 ? "partial" : "unpaid";
-    await updateDoc(doc(db, "tenants", tenantId, "invoices", invoice.id), {
+    await updateDoc(doc(db, "tenants", tenantId, "invoices", invoice.id), cleanForFirestore({
       paidAmount: invPaid,
       balance: invBal,
       status: invStatus,
-    });
+    }));
   }
 
   // 4. Audit Log
@@ -452,7 +673,7 @@ export function subscribeToAssessments(tenantId: string, callback: (assessments:
 }
 
 export async function saveAssessment(tenantId: string, assessment: Assessment, userDetails?: { name: string }): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "assessments", assessment.id), { ...assessment, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "assessments", assessment.id), cleanForFirestore({ ...assessment, tenantId }), { merge: true });
   await logAuditEvent({
     tenantId,
     userName: userDetails?.name || "Teacher",
@@ -493,7 +714,7 @@ export async function saveAttendanceRecord(
   userDetails?: { name: string }
 ): Promise<void> {
   const docRef = doc(db, "tenants", tenantId, "attendance_records", record.id);
-  await setDoc(docRef, { ...record, tenantId }, { merge: true });
+  await setDoc(docRef, cleanForFirestore({ ...record, tenantId }), { merge: true });
 
   await logAuditEvent({
     tenantId,
@@ -518,7 +739,7 @@ export function subscribeToDailyAttendance(tenantId: string, callback: (att: Dai
 }
 
 export async function saveDailyAttendance(tenantId: string, att: DailyAttendance): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "attendance", att.id), { ...att, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "attendance", att.id), cleanForFirestore({ ...att, tenantId }), { merge: true });
 }
 
 export function subscribeToTimetables(tenantId: string, callback: (tt: Timetable[]) => void): Unsubscribe {
@@ -534,7 +755,7 @@ export function subscribeToTimetables(tenantId: string, callback: (tt: Timetable
 }
 
 export async function saveTimetable(tenantId: string, tt: Timetable): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "timetables", tt.id), { ...tt, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "timetables", tt.id), cleanForFirestore({ ...tt, tenantId }), { merge: true });
 }
 
 // ==========================================
@@ -554,7 +775,7 @@ export function subscribeToCertificates(tenantId: string, callback: (certs: Cert
 }
 
 export async function saveCertificate(tenantId: string, cert: Certificate): Promise<void> {
-  await setDoc(doc(db, "tenants", tenantId, "certificates", cert.id), { ...cert, tenantId }, { merge: true });
+  await setDoc(doc(db, "tenants", tenantId, "certificates", cert.id), cleanForFirestore({ ...cert, tenantId }), { merge: true });
 }
 
 export async function issueCertificate(
@@ -563,7 +784,7 @@ export async function issueCertificate(
   userDetails?: { name: string }
 ): Promise<void> {
   const docRef = doc(db, "tenants", tenantId, "certificates", cert.id);
-  await setDoc(docRef, { ...cert, tenantId }, { merge: true });
+  await setDoc(docRef, cleanForFirestore({ ...cert, tenantId }), { merge: true });
 
   await logAuditEvent({
     tenantId,
@@ -616,11 +837,11 @@ export async function saveTenantWebsite(
   userDetails?: { name: string }
 ): Promise<void> {
   const docRef = doc(db, "tenants", tenantId, "website_config", "main");
-  const payload = {
+  const payload = cleanForFirestore({
     ...config,
     tenantId,
     updatedAt: new Date().toISOString(),
-  };
+  });
   await setDoc(docRef, payload, { merge: true });
 
   await logAuditEvent({
@@ -641,7 +862,7 @@ export const saveWebsiteConfig = saveTenantWebsite;
 
 export async function submitPublicInquiry(inquiry: PublicInquiry): Promise<void> {
   const docRef = doc(db, "public_inquiries", inquiry.id);
-  await setDoc(docRef, inquiry);
+  await setDoc(docRef, cleanForFirestore(inquiry));
 }
 
 export function subscribeToAuditLogs(tenantId: string | "all", callback: (logs: AuditLog[]) => void): Unsubscribe {
@@ -675,11 +896,11 @@ export function subscribeToAuditLogs(tenantId: string | "all", callback: (logs: 
 export async function logAuditEvent(log: Omit<AuditLog, "id" | "timestamp">): Promise<void> {
   try {
     const id = "log_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7);
-    const payload: AuditLog = {
+    const payload: AuditLog = cleanForFirestore({
       ...log,
       id,
       timestamp: new Date().toISOString(),
-    };
+    });
 
     if (log.tenantId) {
       const docRef = doc(db, "tenants", log.tenantId, "audit_logs", id);
@@ -1355,6 +1576,69 @@ export async function checkAndSeedInitialTenants(): Promise<void> {
     };
     await setDoc(doc(db, "tenants", "st-austin-academy", "website_config", "main"), saWebsite);
 
+    // Seed Initial Tenant Users & Passwords
+    const bitcAdminUser: TenantUser = {
+      id: "usr_bitc_admin",
+      tenantId: "bitc-college",
+      branchId: "bitc_main",
+      email: "admin@breakthroughcollege.ac.ke",
+      displayName: "Eng. Geoffrey Mwangi (Director)",
+      role: "tenant_owner",
+      status: "active",
+      password: "DaveTech@BITC2026",
+      tempPassword: "DaveTech@BITC2026",
+      phone: "+254 700 123 456",
+      notes: "Principal Academic Administrator for Breakthrough College",
+      createdAt: new Date().toISOString(),
+    };
+    const saAdminUser: TenantUser = {
+      id: "usr_sa_admin",
+      tenantId: "st-austin-academy",
+      branchId: "sa_main",
+      email: "admin@staustin.edu",
+      displayName: "Sister Margaret Wambui (Head of School)",
+      role: "tenant_owner",
+      status: "active",
+      password: "DaveTech@SAJA2026",
+      tempPassword: "DaveTech@SAJA2026",
+      phone: "+254 722 987 654",
+      notes: "Head of School & Primary Administrator for St. Austin",
+      createdAt: new Date().toISOString(),
+    };
+    const saBursarUser: TenantUser = {
+      id: "usr_sa_bursar",
+      tenantId: "st-austin-academy",
+      branchId: "sa_main",
+      email: "bursar@staustin.edu",
+      displayName: "Eunice Njeri (Bursar)",
+      role: "accountant",
+      status: "active",
+      password: "Bursar@SAJA2026",
+      tempPassword: "Bursar@SAJA2026",
+      phone: "+254 722 112 334",
+      notes: "Senior Finance & Bursar Officer",
+      createdAt: new Date().toISOString(),
+    };
+    const saTeacherUser: TenantUser = {
+      id: "usr_sa_teacher",
+      tenantId: "st-austin-academy",
+      branchId: "sa_main",
+      email: "teacher@staustin.edu",
+      displayName: "Mr. Dennis Omondi (Grade 4 Lead)",
+      role: "teacher",
+      status: "active",
+      password: "Teacher@SAJA2026",
+      tempPassword: "Teacher@SAJA2026",
+      phone: "+254 733 445 566",
+      notes: "CBC Grade 4 Lead Teacher",
+      createdAt: new Date().toISOString(),
+    };
+
+    await setDoc(doc(db, "tenants", "bitc-college", "users", bitcAdminUser.id), bitcAdminUser);
+    await setDoc(doc(db, "tenants", "st-austin-academy", "users", saAdminUser.id), saAdminUser);
+    await setDoc(doc(db, "tenants", "st-austin-academy", "users", saBursarUser.id), saBursarUser);
+    await setDoc(doc(db, "tenants", "st-austin-academy", "users", saTeacherUser.id), saTeacherUser);
+
     // Also ensure Platform Config document exists for Davetech
     const platformDocRef = doc(db, "platform_settings", "davetech_main");
     const platformSnap = await getDoc(platformDocRef);
@@ -1429,12 +1713,12 @@ export function getDefaultPlatformConfig(): PlatformConfig {
       slideInterval: 6,
       activeSlideIndex: 0,
     },
-    announcementBanner: "🚀 Davetech Cloud v4.2 Release: Live Automated CBC Assessments, Real-Time Fee Gateways & Multi-Campus Syncing Now Live!",
-    supportEmail: "contact@davetech.co.ke",
-    supportPhone: "+254 700 000 123",
-    whatsappPhone: "+254 700 000 123",
-    address: "Davetech Innovation Tower, Upper Hill, Nairobi, Kenya",
-    websiteUrl: "https://davetecherp.com",
+    announcementBanner: "🚀 DAVETECH Software Solutions: School ERP • POS Systems • Business Websites • Custom Software Development",
+    supportEmail: "support@davetech.co.ke",
+    supportPhone: "+254 707 760 239",
+    whatsappPhone: "+254 707 760 239",
+    address: "Thika, Kenya",
+    websiteUrl: "https://davetech.co.ke",
     primaryColor: "#4f46e5", // Indigo
     accentColor: "#06b6d4", // Cyan
     enablePublicRegistrations: true,
@@ -1599,11 +1883,11 @@ export async function savePlatformConfig(
   const docRef = doc(db, "platform_settings", "davetech_main");
   const snap = await getDoc(docRef);
   const current = snap.exists() ? snap.data() : getDefaultPlatformConfig();
-  const updated = {
+  const updated = cleanForFirestore({
     ...current,
     ...config,
     updatedAt: new Date().toISOString(),
-  };
+  });
   await setDoc(docRef, updated, { merge: true });
 
   await logAuditEvent({
@@ -1631,5 +1915,5 @@ export function subscribeToPlatformConfig(
 
 export async function savePublicInquiry(inquiry: PublicInquiry): Promise<void> {
   const colRef = collection(db, "public_inquiries");
-  await setDoc(doc(colRef, inquiry.id), inquiry);
+  await setDoc(doc(colRef, inquiry.id), cleanForFirestore(inquiry));
 }

@@ -213,9 +213,7 @@ export const StudentsManager: React.FC = () => {
 
   const handleDelete = async (studentId: string) => {
     if (!currentTenant) return;
-    if (confirm("Are you sure you want to remove this student record from Firestore?")) {
-      await deleteStudent(currentTenant.id, studentId, { name: currentUser.name });
-    }
+    await deleteStudent(currentTenant.id, studentId, { name: currentUser.name });
   };
 
   const handlePhotoUpload = async (file: File) => {

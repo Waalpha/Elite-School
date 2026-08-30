@@ -78,9 +78,7 @@ export const StaffManager: React.FC = () => {
 
   const handleDelete = async (staffId: string, name: string) => {
     if (!currentTenant) return;
-    if (window.confirm(`Are you sure you want to delete staff member "${name}"? This action cannot be undone.`)) {
-      await deleteStaff(currentTenant.id, staffId, { name: currentUser.name });
-    }
+    await deleteStaff(currentTenant.id, staffId, { name: currentUser.name });
   };
 
   const handleSave = async (e: React.FormEvent) => {

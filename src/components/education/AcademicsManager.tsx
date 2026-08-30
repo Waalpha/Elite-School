@@ -292,12 +292,10 @@ export const AcademicsManager: React.FC = () => {
 
   const handleDeleteFeeStructure = async (feeId: string, title?: string) => {
     if (!currentTenant) return;
-    if (confirm(`Are you sure you want to delete the fee structure "${title || feeId}"? This cannot be undone.`)) {
-      await deleteFeeStructure(currentTenant.id, feeId, { name: currentUser.name });
-      if (editingFeeStructureId === feeId) {
-        setIsFeeStructureModalOpen(false);
-        setEditingFeeStructureId(null);
-      }
+    await deleteFeeStructure(currentTenant.id, feeId, { name: currentUser.name });
+    if (editingFeeStructureId === feeId) {
+      setIsFeeStructureModalOpen(false);
+      setEditingFeeStructureId(null);
     }
   };
 

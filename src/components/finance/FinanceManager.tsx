@@ -265,13 +265,10 @@ export const FinanceManager: React.FC = () => {
 
   const handleDeleteFeeStructure = async (structureId: string, title?: string) => {
     if (!currentTenant) return;
-    const displayName = title || "this fee structure";
-    if (window.confirm(`Are you sure you want to permanently delete "${displayName}"?`)) {
-      await deleteFeeStructure(currentTenant.id, structureId, { name: currentUser.name });
-      if (isStructureModalOpen && editingStructureId === structureId) {
-        setIsStructureModalOpen(false);
-        setEditingStructureId(null);
-      }
+    await deleteFeeStructure(currentTenant.id, structureId, { name: currentUser.name });
+    if (isStructureModalOpen && editingStructureId === structureId) {
+      setIsStructureModalOpen(false);
+      setEditingStructureId(null);
     }
   };
 
